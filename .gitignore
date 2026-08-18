@@ -1,0 +1,15 @@
+# Streamlit secrets (Do not push private API keys to GitHub)
+.streamlit/secrets.toml
+
+# Python cache & virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.env
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,22 @@
+{
+  "hosting": [
+    {
+      "target": "macro-terminal",
+      "public": "public",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "rewrites": [
+        {
+          "source": "**",
+          "run": {
+            "serviceId": "vietnam-macro-terminal",
+            "region": "asia-southeast1"
+          }
+        }
+      ]
+    }
+  ]
+}
