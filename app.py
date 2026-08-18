@@ -151,9 +151,9 @@ with st.sidebar:
     st.image("https://img.icons8.com/fluency/96/bullish.png", width=60)
     st.markdown("### ⚙️ Cấu Hình Terminal")
 
-    default_fred_key = get_safe_secret("FRED_API_KEY", "")
-    default_gemini_key = get_safe_secret("GEMINI_API_KEY", get_safe_secret("GOOGLE_API_KEY", ""))
-    default_openai_key = get_safe_secret("OPENAI_API_KEY", "")
+    default_fred_key = st.session_state.get("saved_fred_key", get_safe_secret("FRED_API_KEY", ""))
+    default_gemini_key = st.session_state.get("saved_gemini_key", get_safe_secret("GEMINI_API_KEY", get_safe_secret("GOOGLE_API_KEY", "")))
+    default_openai_key = st.session_state.get("saved_openai_key", get_safe_secret("OPENAI_API_KEY", ""))
 
     st.markdown("#### 🔑 Quản Trị API Keys")
     
@@ -250,21 +250,41 @@ with st.sidebar:
         rss_url = rss_presets[selected_preset]
         st.caption(f"🔗 `{rss_url}`")
 
-    if st.button("💾 Lưu Cấu Hình API Key Vĩnh Viễn", use_container_width=True, help="Lưu trực tiếp vào secrets.toml để không bao giờ bị mất khi F5 / mở lại trình duyệt"):
-        secrets_path = os.path.join(_CURRENT_DIR, ".streamlit", "secrets.toml")
-        os.makedirs(os.path.dirname(secrets_path), exist_ok=True)
-        save_dict = {
-            "FRED_API_KEY": fred_api_key.strip(),
-            "GEMINI_API_KEY": (ai_api_key.strip() if provider_name == "gemini" else default_gemini_key),
-            "OPENAI_API_KEY": (ai_api_key.strip() if provider_name == "openai" else default_openai_key),
-            "AI_PROVIDER": provider_name,
-            "AI_MODEL": ai_model,
-            "RSS_FEED_URL": rss_url.strip(),
-        }
-        lines = [f'{k} = "{v}"\n' for k, v in save_dict.items()]
-        with open(secrets_path, "w", encoding="utf-8") as f:
-            f.writelines(lines)
-        st.toast("✅ Đã lưu cấu hình API Key vĩnh viễn! Từ nay F5 sẽ tự động ghi nhớ.", icon="💾")
+    # State initialization for seamless session persistence
+    if "saved_gemini_key" not in st.session_state:
+        st.session_state["saved_gemini_key"] = default_gemini_key
+    if "saved_openai_key" not in st.session_state:
+        st.session_state["saved_openai_key"] = default_openai_key
+    if "saved_fred_key" not in st.session_state:
+        st.session_state["saved_fred_key"] = default_fred_key
+
+    if st.button("💾 Lưu Cấu Hình API Key", use_container_width=True, help="Lưu cấu hình API Key vào phiên làm việc và file"):
+        clean_gemini = ai_api_key.strip() if provider_name == "gemini" else default_gemini_key
+        clean_openai = ai_api_key.strip() if provider_name == "openai" else default_openai_key
+        clean_fred = fred_api_key.strip()
+
+        st.session_state["saved_gemini_key"] = clean_gemini
+        st.session_state["saved_openai_key"] = clean_openai
+        st.session_state["saved_fred_key"] = clean_fred
+
+        try:
+            secrets_path = os.path.join(_CURRENT_DIR, ".streamlit", "secrets.toml")
+            os.makedirs(os.path.dirname(secrets_path), exist_ok=True)
+            save_dict = {
+                "FRED_API_KEY": clean_fred,
+                "GEMINI_API_KEY": clean_gemini,
+                "OPENAI_API_KEY": clean_openai,
+                "AI_PROVIDER": provider_name,
+                "AI_MODEL": ai_model,
+                "RSS_FEED_URL": rss_url.strip(),
+            }
+            lines = [f'{k} = "{v}"\n' for k, v in save_dict.items()]
+            with open(secrets_path, "w", encoding="utf-8") as f:
+                f.writelines(lines)
+            st.toast("✅ Đã lưu cấu hình API Key thành công!", icon="💾")
+        except Exception:
+            # On Streamlit Cloud read-only mount, safely saved to session state
+            st.toast("✅ Đã lưu API Key vào phiên làm việc thành công!", icon="✨")
         st.rerun()
 
     st.markdown("---")
