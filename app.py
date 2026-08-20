@@ -41,7 +41,7 @@ from services.money_flow_service import (
     render_sector_treemap,
 )
 from services.nlp_service import DEFAULT_RSS_FEED, fetch_and_analyze_news
-from services.stock_service import FALLBACK_STOCK_DATABASE, fetch_stock_fundamentals
+from services.stock_service import STOCK_FUNDAMENTALS_REGISTRY, fetch_stock_fundamentals, get_all_registered_stocks
 from utils.macro_analysis import (
     calculate_vietnam_macro_health_score,
     format_ai_indicator_help,
@@ -617,18 +617,49 @@ with tab_terminal:
                     use_container_width=True,
                     hide_index=True,
                     column_config={
-                        "Giá (VNĐ)": st.column_config.NumberColumn("Giá (VNĐ)", format="%,d VNĐ"),
-                        "Biến Động (%)": st.column_config.NumberColumn("Biến Động", format="%+.2f%%"),
-                        "P/E": st.column_config.NumberColumn("P/E", format="%.2fx"),
-                        "ROE (%)": st.column_config.NumberColumn("ROE", format="%.2f%%"),
+                        "Thị Giá Sàn (VNĐ)": st.column_config.NumberColumn("Thị Giá Sàn", format="%,d đ"),
+                        "🎯 Định Giá Hợp Lý (VNĐ)": st.column_config.NumberColumn("🎯 Định Giá Hợp Lý", format="%,d đ"),
+                        "🚀 Dư Địa Tăng (%)": st.column_config.NumberColumn("🚀 Dư Địa (Upside)", format="%+.1f%%"),
+                        "P/E (Lần)": st.column_config.NumberColumn("P/E", format="%.1fx"),
+                        "ROE (%)": st.column_config.NumberColumn("ROE", format="%.1f%%"),
                         "Vốn Hóa (Tỷ VNĐ)": st.column_config.NumberColumn("Vốn Hóa", format="%,.0f Tỷ"),
+                        "Mô Hình Định Giá & Động Lực": st.column_config.TextColumn("Cơ Sở Định Giá", width="medium"),
                     },
                 )
 
-                st.markdown("##### 📈 So Sánh Định Giá (P/E vs ROE)")
+                st.markdown("##### 📈 So Sánh Thị Giá vs Định Giá Mục Tiêu (Upside)")
                 try:
-                    chart_data = df_stocks.set_index("Mã CP")[["P/E", "ROE (%)"]]
-                    st.bar_chart(chart_data, use_container_width=True)
+                    import plotly.graph_objects as go
+                    fig_val = go.Figure()
+                    fig_val.add_trace(go.Bar(
+                        x=df_stocks["Mã CP"],
+                        y=df_stocks["Thị Giá Sàn (VNĐ)"],
+                        name="Thị Giá Sàn",
+                        marker=dict(color="#3498DB", line=dict(width=1, color="#2B313E")),
+                        text=[f"{v:,.0f} đ" for v in df_stocks["Thị Giá Sàn (VNĐ)"]],
+                        textposition="auto",
+                        textfont=dict(size=10, color="#FFFFFF"),
+                    ))
+                    fig_val.add_trace(go.Bar(
+                        x=df_stocks["Mã CP"],
+                        y=df_stocks["🎯 Định Giá Hợp Lý (VNĐ)"],
+                        name="🎯 Định Giá Hợp Lý",
+                        marker=dict(color="#2ECC71", line=dict(width=1, color="#FFFFFF")),
+                        text=[f"{v:,.0f} đ" for v in df_stocks["🎯 Định Giá Hợp Lý (VNĐ)"]],
+                        textposition="auto",
+                        textfont=dict(size=10, color="#FFFFFF"),
+                    ))
+                    fig_val.update_layout(
+                        barmode="group",
+                        paper_bgcolor="#161B26",
+                        plot_bgcolor="#0F131C",
+                        height=330,
+                        margin=dict(l=20, r=20, t=35, b=20),
+                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(color="#FFFFFF")),
+                        yaxis=dict(showgrid=True, gridcolor="#232936", color="#B0BEC5"),
+                        xaxis=dict(showgrid=False, color="#ECEFF1"),
+                    )
+                    st.plotly_chart(fig_val, use_container_width=True)
                 except Exception:
                     pass
             else:
@@ -815,18 +846,8 @@ with tab_sector_screener:
     st.markdown('<div class="section-header">📊 BẢNG ĐỊNH GIÁ CÁC NHÓM NGÀNH TRỌNG ĐIỂM TOÀN THỊ TRƯỜNG</div>', unsafe_allow_html=True)
     st.caption("Tra cứu và so sánh các hệ số định giá P/E, ROE, Vốn hóa và biến động giá của danh mục cổ phiếu hàng đầu:")
 
-    # Build comprehensive sector DataFrame from database
-    all_stocks_list = list(FALLBACK_STOCK_DATABASE.values())
-    df_all_stocks = pd.DataFrame(all_stocks_list).rename(columns={
-        "ticker": "Mã CP",
-        "company_name": "Tên Doanh Nghiệp",
-        "industry": "Nhóm Ngành",
-        "price": "Giá (VNĐ)",
-        "change_pct": "Biến Động (%)",
-        "pe": "P/E (Lần)",
-        "roe": "ROE (%)",
-        "market_cap_bil": "Vốn Hóa (Tỷ VNĐ)",
-    })
+    # Build comprehensive sector DataFrame with live market prices & quantitative metrics
+    df_all_stocks = get_all_registered_stocks().rename(columns={"Ngành": "Nhóm Ngành"})
 
     # Sector Filter
     available_industries = ["Tất cả nhóm ngành"] + sorted(list(df_all_stocks["Nhóm Ngành"].unique()))
@@ -842,11 +863,14 @@ with tab_sector_screener:
         use_container_width=True,
         hide_index=True,
         column_config={
-            "Giá (VNĐ)": st.column_config.NumberColumn("Giá (VNĐ)", format="%,d VNĐ"),
-            "Biến Động (%)": st.column_config.NumberColumn("Biến Động (%)", format="%+.2f%%"),
-            "P/E (Lần)": st.column_config.NumberColumn("P/E (Lần)", format="%.2fx"),
-            "ROE (%)": st.column_config.NumberColumn("ROE (%)", format="%.2f%%"),
+            "Thị Giá Sàn (VNĐ)": st.column_config.NumberColumn("Thị Giá Sàn", format="%,d đ"),
+            "🎯 Định Giá Hợp Lý (VNĐ)": st.column_config.NumberColumn("🎯 Định Giá Hợp Lý", format="%,d đ"),
+            "🚀 Dư Địa Tăng (%)": st.column_config.NumberColumn("🚀 Dư Địa (Upside)", format="%+.1f%%"),
+            "Biến Động (%)": st.column_config.NumberColumn("Biến Động", format="%+.2f%%"),
+            "P/E (Lần)": st.column_config.NumberColumn("P/E", format="%.1fx"),
+            "ROE (%)": st.column_config.NumberColumn("ROE", format="%.1f%%"),
             "Vốn Hóa (Tỷ VNĐ)": st.column_config.NumberColumn("Vốn Hóa", format="%,.0f Tỷ"),
+            "Mô Hình Định Giá & Động Lực": st.column_config.TextColumn("Cơ Sở Định Giá", width="large"),
         },
     )
 
