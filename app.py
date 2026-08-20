@@ -1,5 +1,5 @@
 """
-Vietnam Macro & Equity Terminal - Master Prompt 2.0 (Advanced Pro Edition)
+Vietnam Macro & Equity Terminal Pro v1.2
 =============================================================================
 Event-driven Financial Terminal integrating:
 1. Macro Indicators: Cung tiền M2, Lãi suất 6M/12M, Lãi vay, PMI, USD/VND, TPCP 10Y, FRED API
@@ -18,20 +18,12 @@ _CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 if _CURRENT_DIR not in sys.path:
     sys.path.insert(0, _CURRENT_DIR)
 
-import importlib
 import services.macro_service
 import services.money_flow_service
 import services.nlp_service
 import services.stock_service
 import utils.helpers
 import utils.macro_analysis
-
-importlib.reload(utils.helpers)
-importlib.reload(utils.macro_analysis)
-importlib.reload(services.macro_service)
-importlib.reload(services.money_flow_service)
-importlib.reload(services.nlp_service)
-importlib.reload(services.stock_service)
 
 from services.macro_service import fetch_macro_data
 from services.money_flow_service import (
@@ -64,7 +56,7 @@ def get_safe_secret(key: str, default: str = "") -> str:
 # 1. Page Configuration & Professional Styling
 # ==============================================================================
 st.set_page_config(
-    page_title="Vietnam Macro & Equity Terminal Pro",
+    page_title="Vietnam Macro & Equity Terminal Pro v1.2",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -309,14 +301,19 @@ with st.sidebar:
         st.rerun()
 
     st.markdown("---")
-    st.caption("Vietnam Macro & Equity Terminal v2.5 Pro")
+    st.caption("Vietnam Macro & Equity Terminal Pro • **v1.2**")
 
 # ==============================================================================
 # 3. Main Dashboard Header & Market Thermometer
 # ==============================================================================
 col_title, col_status = st.columns([3, 1])
 with col_title:
-    st.markdown('<p class="terminal-title">VIETNAM MACRO & EQUITY TERMINAL PRO</p>', unsafe_allow_html=True)
+    st.markdown(
+        '<p class="terminal-title">VIETNAM MACRO & EQUITY TERMINAL PRO '
+        '<span style="font-size: 0.95rem; vertical-align: middle; background: rgba(0, 173, 181, 0.2); '
+        'color: #00FFF5; border: 1px solid #00ADB5; padding: 2px 10px; border-radius: 8px; font-weight: 700; letter-spacing: 0.5px;">v1.2</span></p>',
+        unsafe_allow_html=True,
+    )
     st.markdown('<p class="terminal-subtitle">NCT-System : Phân Tích Vĩ Mô Toàn Diện, Lượng Hóa Chính Sách & Định Giá Cổ Phiếu Tự Động Hóa</p>', unsafe_allow_html=True)
 
 with col_status:
@@ -335,12 +332,39 @@ last_sync_time = sync_meta.get("last_sync", datetime.now().strftime("%d/%m/%Y %H
 
 # Live Auto-Sync Ribbon
 col_ribbon1, col_ribbon2 = st.columns([4, 1])
+
+# Determine actual data source status
+has_fred = bool(fred_api_key)
+any_fallback = any(
+    macro_data.get(k, {}).get("is_fallback", True)
+    for k in ["fed_funds", "vn_cpi", "vn_gdp"]
+)
+
+if has_fred and not any_fallback:
+    ribbon_icon = "🟢"
+    ribbon_label = "LIVE FRED API CONNECTED — DỮ LIỆU CẬP NHẬT TRỰC TIẾP"
+    ribbon_border = "#2ECC71"
+    ribbon_bg_start = "rgba(46, 204, 113, 0.15)"
+    ribbon_bg_end = "rgba(46, 204, 113, 0.15)"
+elif has_fred:
+    ribbon_icon = "🟡"
+    ribbon_label = "FRED API — MỘT SỐ CHỈ BÁO DÙNG DỮ LIỆU THAM CHIẾU"
+    ribbon_border = "#F39C12"
+    ribbon_bg_start = "rgba(243, 156, 18, 0.15)"
+    ribbon_bg_end = "rgba(243, 156, 18, 0.15)"
+else:
+    ribbon_icon = "🟠"
+    ribbon_label = "CHẾ ĐỘ DỮ LIỆU THAM CHIẾU CHUẨN (BASELINE BENCHMARK)"
+    ribbon_border = "#FF9800"
+    ribbon_bg_start = "rgba(255, 152, 0, 0.15)"
+    ribbon_bg_end = "rgba(255, 152, 0, 0.15)"
+
 with col_ribbon1:
     st.markdown(
         f"""
-        <div style="background: linear-gradient(90deg, rgba(0, 173, 181, 0.15) 0%, rgba(46, 204, 113, 0.15) 100%); border: 1px solid #00ADB5; border-radius: 8px; padding: 8px 14px; margin-bottom: 12px;">
-            <span style="color: #00FFF5; font-weight: 800; font-size: 0.88rem;">🟢 DỮ LIỆU VĨ MÔ 2026 (HIỆN TẠI) — AUTO-SYNC REALTIME ACTIVE</span>
-            <p style="margin: 2px 0 0 0; font-size: 0.78rem; color: #ECEFF1;">Cơ chế tự động đồng bộ & quét số liệu định kỳ khi có công bố mới từ NHNN, TCTK, Tổng Cục Hải Quan & FRED. Đồng bộ gần nhất: <b style="color:#2ECC71;">{last_sync_time}</b></p>
+        <div style="background: linear-gradient(90deg, {ribbon_bg_start} 0%, {ribbon_bg_end} 100%); border: 1px solid {ribbon_border}; border-radius: 8px; padding: 8px 14px; margin-bottom: 12px;">
+            <span style="color: {ribbon_border}; font-weight: 800; font-size: 0.88rem;">{ribbon_icon} {ribbon_label}</span>
+            <p style="margin: 2px 0 0 0; font-size: 0.78rem; color: #ECEFF1;">Cơ chế tự động đồng bộ & quét số liệu định kỳ khi có công bố mới từ NHNN, TCTK, Tổng Cục Hải Quan & FRED. Đồng bộ gần nhất: <b style="color:{ribbon_border};">{last_sync_time}</b></p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -356,8 +380,31 @@ with col_ribbon2:
 # ==============================================================================
 st.markdown('<div class="section-header">🌡️ NHIỆT KẾ SỨC KHỎE KINH TẾ VIỆT NAM & CHỈ BÁO TIỀN TỆ TRỌNG YẾU</div>', unsafe_allow_html=True)
 
+def _render_health_pill(label, key, macro_data, threshold_good, unit="%", higher_is_better=True):
+    val = macro_data.get(key, {}).get("latest", 0)
+    if higher_is_better:
+        is_good = val >= threshold_good
+    else:
+        is_good = val <= threshold_good
+    color = "#2ECC71" if is_good else "#F39C12"
+    bg = f"rgba(46, 204, 113, 0.15)" if is_good else f"rgba(243, 156, 18, 0.15)"
+    border_c = f"rgba(46, 204, 113, 0.3)" if is_good else f"rgba(243, 156, 18, 0.3)"
+    status_text = "Tích cực" if is_good else "Theo dõi"
+    return (f'<span style="background: {bg}; color: {color}; padding: 3px 10px; '
+            f'border-radius: 12px; border: 1px solid {border_c}; font-size: 0.8rem; font-weight: 600;">'
+            f'{label}: {status_text} ({val:.2f}{unit})</span>')
+
 # Calculate Vietnam Macro Health Composite Score
 vn_score, vn_status_title, vn_status_color, vn_summary = calculate_vietnam_macro_health_score(macro_data)
+
+pills = [
+    _render_health_pill("💧 Thanh khoản M2", "m2_money_supply", macro_data, 12.0),
+    _render_health_pill("🏭 Sản xuất PMI", "pmi_index", macro_data, 50.0, " điểm"),
+    _render_health_pill("⚖️ Lạm phát CPI", "vn_cpi", macro_data, 4.5, "%", higher_is_better=False),
+    _render_health_pill("📉 Lãi vay", "lending_rate_avg", macro_data, 9.5, "%", higher_is_better=False),
+    _render_health_pill("💵 Tỷ giá", "usd_vnd_rate", macro_data, 25800, " ₫", higher_is_better=False),
+]
+pills_html = "\n".join(pills)
 
 # Thermometer Visual Widget
 st.markdown(
@@ -377,11 +424,7 @@ st.markdown(
             🦉 <strong>Tình trạng hiện tại của thị trường:</strong> {vn_summary}
         </p>
         <div style="display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.8rem; font-weight: 600;">
-            <span style="background: rgba(46, 204, 113, 0.15); color: #2ECC71; padding: 3px 10px; border-radius: 12px; border: 1px solid rgba(46, 204, 113, 0.3);">💧 Thanh khoản M2: Dồi dào (+14.25%)</span>
-            <span style="background: rgba(46, 204, 113, 0.15); color: #2ECC71; padding: 3px 10px; border-radius: 12px; border: 1px solid rgba(46, 204, 113, 0.3);">🏭 Sản xuất PMI: Mở rộng (52.4 điểm)</span>
-            <span style="background: rgba(46, 204, 113, 0.15); color: #2ECC71; padding: 3px 10px; border-radius: 12px; border: 1px solid rgba(46, 204, 113, 0.3);">⚖️ Lạm phát CPI: Kiểm soát tốt (4.36%)</span>
-            <span style="background: rgba(46, 204, 113, 0.15); color: #2ECC71; padding: 3px 10px; border-radius: 12px; border: 1px solid rgba(46, 204, 113, 0.3);">📉 Lãi vay: Hạ nhiệt (-0.35%)</span>
-            <span style="background: rgba(243, 156, 18, 0.15); color: #F39C12; padding: 3px 10px; border-radius: 12px; border: 1px solid rgba(243, 156, 18, 0.3);">💵 Tỷ giá: Biên độ an toàn (25,420 ₫)</span>
+            {pills_html}
         </div>
     </div>
     """,
@@ -623,6 +666,11 @@ with tab_terminal:
                         "P/E (Lần)": st.column_config.NumberColumn("P/E", format="%.1fx"),
                         "ROE (%)": st.column_config.NumberColumn("ROE", format="%.1f%%"),
                         "Vốn Hóa (Tỷ VNĐ)": st.column_config.NumberColumn("Vốn Hóa", format="%,.0f Tỷ"),
+                        "🔬 Engine": st.column_config.TextColumn(
+                            "🔬 Nguồn",
+                            width="small",
+                            help="✅ Computed = Tính từ engine valuation thực. 📋 Reference = Giá mục tiêu tham chiếu."
+                        ),
                         "Mô Hình Định Giá & Động Lực": st.column_config.TextColumn("Cơ Sở Định Giá", width="medium"),
                     },
                 )
@@ -768,13 +816,27 @@ with tab_macro_radar:
     with col_radar2:
         st.markdown("##### 🏦 Đường Cong Lãi Suất & Lợi Suất Trái Phiếu Chính Phủ VN")
         tenors = ["ON (Liên NH)", "6 Tháng", "12 Tháng", "Lãi Vay TB", "TPCP 10Y"]
-        rates = [4.15, 4.65, 5.75, 8.60, 2.82]
+        rates = [
+            macro_data.get("interbank_rate", {}).get("latest", 4.15),
+            macro_data.get("deposit_rate_6m", {}).get("latest", 4.65),
+            macro_data.get("deposit_rate_12m", {}).get("latest", 5.75),
+            macro_data.get("lending_rate_avg", {}).get("latest", 8.60),
+            macro_data.get("vn_bond_10y", {}).get("latest", 2.82),
+        ]
         df_yield_curve = pd.DataFrame({
             "Kỳ hạn": tenors,
             "Lãi suất (%)": rates,
         }).set_index("Kỳ hạn")
         st.bar_chart(df_yield_curve, use_container_width=True)
         st.caption("💡 *Phân tích biên lãi (NIM):* Chênh lệch Lãi vay TB (8.60%) và Lãi huy động 12T (5.75%) duy trì mức Spread ~2.85%, đảm bảo biên lợi nhuận lành mạnh cho nhóm Ngân hàng.")
+        
+        if rates[4] < rates[0]:
+            st.caption(
+                "⚠️ *Lưu ý:* Lợi suất TPCP 10Y thấp hơn lãi suất Liên Ngân Hàng ON — "
+                "đây là đặc thù thị trường Việt Nam do các NHTM bắt buộc mua TPCP theo quy định "
+                "an toàn vốn (Basel III), tạo cầu lớn đẩy lợi suất TPCP xuống thấp. "
+                "Không nên diễn giải đây là tín hiệu suy thoái như ở thị trường Mỹ."
+            )
 
     st.markdown("---")
     st.markdown("##### 🚦 Bảng Đánh Giá Sức Khỏe Kinh Tế Vĩ Mô Việt Nam")
@@ -870,6 +932,11 @@ with tab_sector_screener:
             "P/E (Lần)": st.column_config.NumberColumn("P/E", format="%.1fx"),
             "ROE (%)": st.column_config.NumberColumn("ROE", format="%.1f%%"),
             "Vốn Hóa (Tỷ VNĐ)": st.column_config.NumberColumn("Vốn Hóa", format="%,.0f Tỷ"),
+            "🔬 Engine": st.column_config.TextColumn(
+                "🔬 Nguồn",
+                width="small",
+                help="✅ Computed = Tính từ engine valuation thực. 📋 Reference = Giá mục tiêu tham chiếu."
+            ),
             "Mô Hình Định Giá & Động Lực": st.column_config.TextColumn("Cơ Sở Định Giá", width="large"),
         },
     )
@@ -882,3 +949,17 @@ with tab_sector_screener:
         file_name="vietnam_macro_equity_valuation_report.csv",
         mime="text/csv",
     )
+
+# ==============================================================================
+# FOOTER
+# ==============================================================================
+st.markdown("---")
+st.markdown(
+    """
+    <div style="text-align: center; padding: 14px 20px; font-size: 0.82rem;
+                color: #78909C; border-top: 1px solid #2B313E;">
+        © 2026 <strong>NCT-System</strong> • Vietnam Macro & Equity Terminal Pro <strong>v1.2</strong>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)

@@ -1,7 +1,7 @@
-# Vietnam Macro & Equity Terminal (v2.0)
+# Vietnam Macro & Equity Terminal Pro (v1.2)
 
 > **Hệ Thống Terminal Phân Tích Vĩ Mô & Định Giá Cổ Phiếu Tự Động Hóa**
-> Kiến trúc Master Prompt 2.0 với Unified UI 4.0 & Event Selection Reactive Layout.
+> Kiến trúc Master Prompt 2.0 tích hợp Quantitative Valuation Engine & 5-Pillar Financial Audit Framework.
 
 ---
 
@@ -9,22 +9,23 @@
 
 Hệ thống được thiết kế dựa trên các nguyên tắc công nghệ tài chính hiện đại nhằm giải quyết bài toán phân tích liên thị trường và lượng hóa tác động chính sách lên nhóm cổ phiếu:
 
-1. **Bộ Chỉ Báo Vĩ Mô (FRED API)**:
-   - Tích hợp 3 chuỗi dữ liệu kinh tế lượng: Lãi suất Fed (`FEDFUNDS`), Lạm phát CPI Việt Nam (`FPCPITOTLZGVNM`), Quy mô GDP (`MKTGDPVNA646NWDB`).
-   - Bộ nhớ đệm cấp 1: `@st.cache_data(ttl=86400)` (24 giờ).
+1. **Bộ Chỉ Báo Vĩ Mô (FRED API + Continuous Macro Health Score)**:
+   - Tích hợp 12 chỉ báo kinh tế lượng: M2, Lãi suất 6M/12M, Lãi vay, PMI, USD/VND, DXY, TPCP 10Y, Lãi suất Fed (`FEDFUNDS`), Lạm phát CPI Việt Nam (`FPCPITOTLZGVNM`), Quy mô GDP (`MKTGDPVNA646NWDB`).
+   - Hệ thống chấm điểm nhiệt kế vĩ mô liên tục (Linear Interpolation) 0-100 điểm.
 
-2. **Động Cơ Phân Tích Chính Sách Bằng AI (Feedparser + OpenAI JSON Mode)**:
+2. **Động Cơ Định Giá Định Lượng (Quantitative Valuation Engine)**:
+   - Tích hợp 3 mô hình định giá chuẩn CFA: **Forward P/E**, **Justified P/B (Gordon Growth Model)**, và **Blended Valuation** với Biên an toàn (Margin of Safety 15%).
+   - Tự động hóa tính Vốn hóa thị trường realtime theo giá khớp lệnh sàn giao dịch (SSI iBoard).
+
+3. **Động Cơ Phân Tích Chính Sách Bằng AI (Feedparser + Gemini 3.7 / OpenAI)**:
    - Thu thập luồng RSS công báo chính phủ và tin tức vĩ mô.
-   - LLM hoạt động với vai trò Giám Đốc Đầu Tư (CIO) qua `response_format={"type": "json_object"}` để sinh kết quả tất định.
+   - LLM hoạt động với vai trò Giám Đốc Đầu Tư (CIO) qua Structured JSON output.
    - Trích xuất: Tóm tắt chính sách, Đánh giá tác động chuỗi giá trị, Nhóm mã cổ phiếu hưởng lợi (`benefited_tickers`).
-   - Bộ nhớ đệm cấp 2: `@st.cache_data(ttl=3600)` (1 giờ).
 
-3. **Bộ Lọc Định Giá & Phản Ứng Sự Kiện (vnstock Unified UI 4.0 + Streamlit Event Selection)**:
-   - Bố cục **Master - Detail (60% / 40%)**: Bảng Master bên trái bắt sự kiện `on_select="rerun"`, điều khiển bảng Detail bên phải hiển thị P/E, ROE, Vốn hóa, Biến động giá trực tiếp.
-   - Tương tác 3 lớp vnstock 4.0: `Reference`, `Market`, `Fundamental`.
-   - Bộ nhớ đệm cấp 3: `@st.cache_data(ttl=300)` (5 phút).
+4. **Động Cơ Dòng Tiền Ngành & RRG (Relative Rotation Graph)**:
+   - Tính toán RS-Ratio và RS-Momentum chuẩn JdK Research phân loại 4 góc phần tư: Leading, Improving, Weakening, Lagging.
 
-4. **Khả Năng Chống Sụp Đổ Tuyệt Đối (Zero-Crash Tolerance)**:
+5. **Khả Năng Chống Sụp Đổ Tuyệt Đối (Zero-Crash Tolerance)**:
    - Tất cả các luồng dữ liệu đều được bảo vệ bởi cơ chế Fallback an toàn. Ứng dụng luôn hiển thị mượt mà ngay cả khi mất mạng hoặc chưa cấu hình API Key.
 
 ---
@@ -40,8 +41,8 @@ py -m pip install -r requirements.txt
 Chỉnh sửa file `.streamlit/secrets.toml`:
 ```toml
 FRED_API_KEY = "your_fred_api_key_here"
+GEMINI_API_KEY = "your_gemini_api_key_here"
 OPENAI_API_KEY = "your_openai_api_key_here"
-OPENAI_MODEL = "gpt-4o-mini"
 RSS_FEED_URL = "http://congbao.chinhphu.vn/cac-van-ban-moi-ban-hanh.rss"
 ```
 *(Bạn cũng có thể nhập trực tiếp API Key trên Sidebar của giao diện Terminal)*.
@@ -51,9 +52,9 @@ RSS_FEED_URL = "http://congbao.chinhphu.vn/cac-van-ban-moi-ban-hanh.rss"
 py -m streamlit run app.py
 ```
 
-### 4. Chạy kiểm thử tự động (Unit Tests):
+### 4. Chạy kiểm thử tự động (Pytest Suite - 22/22 Tests):
 ```bash
-py -c "import tests.test_services as t; t.test_clean_html(); t.test_is_valid_ticker(); t.test_format_helpers(); t.test_macro_service_fallback(); t.test_nlp_service_fallback(); t.test_stock_service(); t.test_stock_service_invalid_ticker_handling(); print('ALL 7 TESTS PASSED!')"
+py -m pytest tests/test_services.py -v
 ```
 
 ---
