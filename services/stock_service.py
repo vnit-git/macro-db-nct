@@ -16,8 +16,23 @@ _PARENT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _PARENT_DIR not in sys.path:
     sys.path.insert(0, _PARENT_DIR)
 
-from utils.helpers import is_valid_ticker
-from services.valuation_engine import compute_valuation
+try:
+    from utils.helpers import is_valid_ticker
+except Exception:
+    import re
+    def is_valid_ticker(t: Any) -> bool:
+        return bool(t and isinstance(t, str) and re.match(r"^[A-Z0-9]{3}$", t.strip().upper()))
+
+try:
+    from services.valuation_engine import compute_valuation
+except Exception:
+    def compute_valuation(profile: Dict, live_price: int = 0) -> Dict:
+        return {
+            "computed_target": profile.get("target_price", 0),
+            "computed_method_desc": profile.get("valuation_method", "Target P/E & Forward EPS"),
+            "is_engine_computed": False,
+            "details": {},
+        }
 
 logger = logging.getLogger(__name__)
 
