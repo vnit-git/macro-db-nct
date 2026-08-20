@@ -5,6 +5,16 @@ Calculates Vietnam Macro Composite Health Score (0-100) and renders rich AI Tool
 from typing import Any, Dict, List, Tuple
 
 
+def _linear_score(value: float, worst: float, best: float, max_pts: float) -> float:
+    if best > worst:
+        if value <= worst: return 0.0
+        if value >= best: return max_pts
+        return max_pts * (value - worst) / (best - worst)
+    else:
+        if value >= worst: return 0.0
+        if value <= best: return max_pts
+        return max_pts * (worst - value) / (worst - best)
+
 def calculate_vietnam_macro_health_score(macro_data: Dict[str, Any]) -> Tuple[int, str, str, str]:
     """
     Calculate the Vietnam Macro Composite Health Score on a 0-100 scale.
@@ -25,52 +35,19 @@ def calculate_vietnam_macro_health_score(macro_data: Dict[str, Any]) -> Tuple[in
     score = 0.0
 
     # 1. Cung tiền M2 (25 điểm)
-    if m2_growth >= 13.5:
-        score += 25.0
-    elif m2_growth >= 11.0:
-        score += 20.0
-    elif m2_growth >= 8.0:
-        score += 15.0
-    else:
-        score += 8.0
+    score += _linear_score(m2_growth, 4.0, 15.0, 25.0)
 
     # 2. PMI Sản xuất (25 điểm)
-    if pmi >= 52.0:
-        score += 25.0
-    elif pmi >= 50.0:
-        score += 20.0
-    elif pmi >= 48.0:
-        score += 12.0
-    else:
-        score += 5.0
+    score += _linear_score(pmi, 44.0, 55.0, 25.0)
 
     # 3. Lạm phát CPI (20 điểm)
-    if cpi <= 4.0:
-        score += 20.0
-    elif cpi <= 4.5:
-        score += 16.0
-    elif cpi <= 5.0:
-        score += 10.0
-    else:
-        score += 4.0
+    score += _linear_score(cpi, 7.0, 3.0, 20.0)
 
     # 4. Lãi suất cho vay (15 điểm)
-    if lending_rate <= 8.5:
-        score += 15.0
-    elif lending_rate <= 9.5:
-        score += 12.0
-    elif lending_rate <= 11.0:
-        score += 8.0
-    else:
-        score += 3.0
+    score += _linear_score(lending_rate, 13.0, 7.5, 15.0)
 
-    # 5. Tỷ giá & DXY (15 điểm)
-    if dxy <= 103.5 and usd_vnd <= 25500:
-        score += 15.0
-    elif dxy <= 105.0:
-        score += 11.0
-    else:
-        score += 6.0
+    # 5. Tỷ giá USD/VND (15 điểm)
+    score += _linear_score(usd_vnd, 26500.0, 24000.0, 15.0)
 
     final_score = int(round(score))
 
