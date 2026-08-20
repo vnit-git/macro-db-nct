@@ -19,6 +19,7 @@ if _CURRENT_DIR not in sys.path:
 
 import importlib
 import services.macro_service
+import services.money_flow_service
 import services.nlp_service
 import services.stock_service
 import utils.helpers
@@ -27,10 +28,17 @@ import utils.macro_analysis
 importlib.reload(utils.helpers)
 importlib.reload(utils.macro_analysis)
 importlib.reload(services.macro_service)
+importlib.reload(services.money_flow_service)
 importlib.reload(services.nlp_service)
 importlib.reload(services.stock_service)
 
 from services.macro_service import fetch_macro_data
+from services.money_flow_service import (
+    SECTOR_MONEY_FLOW_DATA,
+    render_net_inflow_chart,
+    render_rrg_chart,
+    render_sector_treemap,
+)
 from services.nlp_service import DEFAULT_RSS_FEED, fetch_and_analyze_news
 from services.stock_service import FALLBACK_STOCK_DATABASE, fetch_stock_fundamentals
 from utils.helpers import clean_html, format_currency_vnd, format_number, format_percent
@@ -465,8 +473,9 @@ st.markdown("<br>", unsafe_allow_html=True)
 # ==============================================================================
 # 5. Multi-Tab Advanced Analytics Architecture
 # ==============================================================================
-tab_terminal, tab_macro_radar, tab_sector_screener = st.tabs([
+tab_terminal, tab_money_flow, tab_macro_radar, tab_sector_screener = st.tabs([
     "🏛️ Terminal Tương Tác Chính Sách & Cổ Phiếu",
+    "🧭 Luân Chuyển Dòng Tiền & Ma Trận RRG",
     "🌐 Radar Chu Kỳ Vĩ Mô & Tương Quan",
     "📊 Bảng Định Giá Ngành & Xuất Báo Cáo",
 ])
@@ -603,7 +612,85 @@ with tab_terminal:
             st.info("Chính sách này chưa nhận diện mã cổ phiếu hưởng lợi trực tiếp.")
 
 # ==============================================================================
-# TAB 2: Macro Cycles & Correlation Radar (Inspired by vimo.cuthongthai.vn)
+# TAB 2: Sector Capital Rotation & Relative Rotation Graph (RRG)
+# ==============================================================================
+with tab_money_flow:
+    st.markdown('<div class="section-header">🧭 MA TRẬN LUÂN CHUYỂN DÒNG TIỀN THEO NGÀNH & QUỸ ĐẠO RRG</div>', unsafe_allow_html=True)
+    st.caption("Mô hình lượng hóa sức mạnh tương đối (RS-Ratio) và xung lực dòng tiền (RS-Momentum) để phát hiện xu hướng dòng tiền dịch chuyển giữa các nhóm ngành:")
+
+    # AI Rotation Pulse Banner
+    st.markdown(
+        """
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 16px;">
+            <div style="background: rgba(46, 204, 113, 0.1); border: 1px solid #2ECC71; border-radius: 8px; padding: 10px 14px;">
+                <span style="color: #2ECC71; font-weight: 800; font-size: 0.85rem;">🚀 DẪN DẮT (LEADING)</span>
+                <p style="margin: 4px 0 0 0; font-size: 0.88rem; font-weight: 700; color: #FFFFFF;">Bất Động Sản, CNTT, Chứng Khoán</p>
+                <span style="font-size: 0.78rem; color: #B0BEC5;">Dòng tiền ròng vào mạnh, giá tăng vượt trội</span>
+            </div>
+            <div style="background: rgba(0, 173, 181, 0.1); border: 1px solid #00ADB5; border-radius: 8px; padding: 10px 14px;">
+                <span style="color: #00ADB5; font-weight: 800; font-size: 0.85rem;">🔄 HỒI PHỤC (IMPROVING)</span>
+                <p style="margin: 4px 0 0 0; font-size: 0.88rem; font-weight: 700; color: #FFFFFF;">Đầu Tư Công, Năng Lượng & Điện</p>
+                <span style="font-size: 0.78rem; color: #B0BEC5;">Xung lực RS tăng, tiền âm thầm gom đáy</span>
+            </div>
+            <div style="background: rgba(243, 156, 18, 0.1); border: 1px solid #F39C12; border-radius: 8px; padding: 10px 14px;">
+                <span style="color: #F39C12; font-weight: 800; font-size: 0.85rem;">⚠️ SUY YẾU (WEAKENING)</span>
+                <p style="margin: 4px 0 0 0; font-size: 0.88rem; font-weight: 700; color: #FFFFFF;">Ngân Hàng, Bán Lẻ & Tiêu Dùng</p>
+                <span style="font-size: 0.78rem; color: #B0BEC5;">Xung lực tiền chậm lại, áp lực chốt lời</span>
+            </div>
+            <div style="background: rgba(231, 76, 60, 0.1); border: 1px solid #E74C3C; border-radius: 8px; padding: 10px 14px;">
+                <span style="color: #E74C3C; font-weight: 800; font-size: 0.85rem;">🛑 TỤT HẬU (LAGGING)</span>
+                <p style="margin: 4px 0 0 0; font-size: 0.88rem; font-weight: 700; color: #FFFFFF;">Thép, Dầu Khí, Hóa Chất</p>
+                <span style="font-size: 0.78rem; color: #B0BEC5;">Dòng tiền rút ra, chờ cân bằng cung cầu</span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # 1. Main Interactive RRG Chart
+    fig_rrg = render_rrg_chart(SECTOR_MONEY_FLOW_DATA)
+    st.plotly_chart(fig_rrg, use_container_width=True)
+
+    # 2. Dual Sub-Charts: Net Inflow Barometer + Liquidity Treemap
+    col_flow1, col_flow2 = st.columns(2)
+    with col_flow1:
+        fig_inflow = render_net_inflow_chart(SECTOR_MONEY_FLOW_DATA)
+        st.plotly_chart(fig_inflow, use_container_width=True)
+    with col_flow2:
+        fig_treemap = render_sector_treemap(SECTOR_MONEY_FLOW_DATA)
+        st.plotly_chart(fig_treemap, use_container_width=True)
+
+    # 3. Actionable Sector Rotation Table
+    st.markdown("##### 📋 Bảng Chi Tiết Luân Chuyển & Khuyến Nghị Hành Động Dòng Tiền")
+    df_sectors = pd.DataFrame(SECTOR_MONEY_FLOW_DATA)[
+        ["name", "quadrant", "net_inflow_bil", "liquidity_pct", "price_change_pct", "recommendation", "top_stocks", "summary"]
+    ].rename(columns={
+        "name": "Nhóm Ngành",
+        "quadrant": "Vùng RRG",
+        "net_inflow_bil": "Dòng Tiền Ròng (Tỷ VNĐ)",
+        "liquidity_pct": "Tỷ Trọng GTGD (%)",
+        "price_change_pct": "Biến Động Giá (%)",
+        "recommendation": "Khuyến Nghị AI",
+        "top_stocks": "Cổ Phiếu Trọng Tâm",
+        "summary": "Đánh Giá Luân Chuyển Dòng Tiền",
+    })
+
+    df_sectors["Cổ Phiếu Trọng Tâm"] = df_sectors["Cổ Phiếu Trọng Tâm"].apply(lambda x: ", ".join(x) if isinstance(x, list) else str(x))
+
+    st.dataframe(
+        df_sectors,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "Dòng Tiền Ròng (Tỷ VNĐ)": st.column_config.NumberColumn("Dòng Tiền Ròng", format="%+,d Tỷ"),
+            "Tỷ Trọng GTGD (%)": st.column_config.NumberColumn("Tỷ Trọng GTGD", format="%.1f%%"),
+            "Biến Động Giá (%)": st.column_config.NumberColumn("Biến Động Giá", format="%+.2f%%"),
+            "Đánh Giá Luân Chuyển Dòng Tiền": st.column_config.TextColumn("Đánh Giá Luân Chuyển Dòng Tiền", width="large"),
+        },
+    )
+
+# ==============================================================================
+# TAB 3: Macro Cycles & Correlation Radar (Inspired by vimo.cuthongthai.vn)
 # ==============================================================================
 with tab_macro_radar:
     st.markdown('<div class="section-header">🌐 RADAR CHU KỲ KINH TẾ & TƯƠNG QUAN CHÍNH SÁCH TIỀN TỆ</div>', unsafe_allow_html=True)
@@ -682,7 +769,7 @@ with tab_macro_radar:
         )
 
 # ==============================================================================
-# TAB 3: Comprehensive Sector Screener & Data Export
+# TAB 4: Comprehensive Sector Screener & Data Export
 # ==============================================================================
 with tab_sector_screener:
     st.markdown('<div class="section-header">📊 BẢNG ĐỊNH GIÁ CÁC NHÓM NGÀNH TRỌNG ĐIỂM TOÀN THỊ TRƯỜNG</div>', unsafe_allow_html=True)
