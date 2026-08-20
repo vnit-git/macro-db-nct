@@ -575,8 +575,7 @@ with tab_terminal:
         if selected_tickers:
             st.success(f"🎯 **Nhóm cổ phiếu trọng tâm:** {', '.join(selected_tickers)}")
 
-            with st.spinner("Đang truy xuất chỉ số định giá từ vnstock 4.0 Unified UI..."):
-                df_stocks = fetch_stock_fundamentals(selected_tickers)
+            df_stocks = fetch_stock_fundamentals(selected_tickers)
 
             if not df_stocks.empty:
                 st.dataframe(
