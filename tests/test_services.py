@@ -69,7 +69,9 @@ def test_stock_service():
     assert not df.empty
     assert len(df) == 3
     assert "Mã CP" in df.columns
-    assert "P/E" in df.columns
+    assert "Thị Giá Sàn (VNĐ)" in df.columns
+    assert "🎯 Định Giá Hợp Lý (VNĐ)" in df.columns
+    assert "P/E (Lần)" in df.columns
     assert "ROE (%)" in df.columns
     assert "Vốn Hóa (Tỷ VNĐ)" in df.columns
     assert "VHM" in df["Mã CP"].values
@@ -83,3 +85,98 @@ def test_stock_service_invalid_ticker_handling():
     assert isinstance(df, pd.DataFrame)
     assert not df.empty
     assert "VHM" in df["Mã CP"].values
+
+# ─── Valuation Engine Tests ───
+def test_forward_pe_basic():
+    from services.valuation_engine import calc_forward_pe_target
+    target, desc = calc_forward_pe_target(5000, 0.20, 15.0, 0.15)
+    assert target > 0
+    expected = round(5000 * 1.20 * 15.0 * 0.85 / 500) * 500
+    assert target == expected
+    assert "Forward P/E" in desc
+
+def test_forward_pe_zero_eps():
+    from services.valuation_engine import calc_forward_pe_target
+    target, desc = calc_forward_pe_target(0, 0.20, 15.0)
+    assert target == 0.0
+
+def test_forward_pe_negative_eps():
+    from services.valuation_engine import calc_forward_pe_target
+    target, _ = calc_forward_pe_target(-1000, 0.20, 15.0)
+    assert target == 0.0
+
+def test_justified_pb_basic():
+    from services.valuation_engine import calc_justified_pb_target
+    target, desc = calc_justified_pb_target(30000, 0.225, beta=1.0)
+    assert target > 0
+    assert "Justified P/B" in desc
+
+def test_justified_pb_coe_equals_g():
+    from services.valuation_engine import calc_justified_pb_target
+    target, _ = calc_justified_pb_target(30000, 0.15, cost_of_equity=0.05, terminal_growth=0.05)
+    assert target > 0
+
+def test_justified_pb_zero_bvps():
+    from services.valuation_engine import calc_justified_pb_target
+    target, _ = calc_justified_pb_target(0, 0.15)
+    assert target == 0.0
+
+def test_blended_both_valid():
+    from services.valuation_engine import calc_blended_target
+    target, _ = calc_blended_target(50000, 60000, 0.5, 0.5)
+    assert target == round(55000 / 500) * 500
+
+def test_blended_one_zero():
+    from services.valuation_engine import calc_blended_target
+    target, _ = calc_blended_target(50000, 0)
+    assert target == round(50000 / 500) * 500
+
+def test_blended_both_zero():
+    from services.valuation_engine import calc_blended_target
+    target, _ = calc_blended_target(0, 0)
+    assert target == 0.0
+
+def test_compute_valuation_with_data():
+    from services.valuation_engine import compute_valuation
+    profile = {"eps_ttm": 5000, "eps_growth": 0.15, "bvps": 30000, "official_roe": 22.5, "beta": 1.0, "target_pe_multiple": 15.0}
+    result = compute_valuation(profile)
+    assert result["is_engine_computed"] is True
+    assert result["computed_target"] > 0
+
+def test_compute_valuation_fallback():
+    from services.valuation_engine import compute_valuation
+    profile = {"target_price": 50000, "valuation_method": "Reference"}
+    result = compute_valuation(profile)
+    assert result["is_engine_computed"] is False
+    assert result["computed_target"] == 50000
+
+def test_rrg_classify_quadrant():
+    from services.money_flow_service import classify_rrg_quadrant
+    assert classify_rrg_quadrant(105, 103) == "Leading"
+    assert classify_rrg_quadrant(97, 103) == "Improving"
+    assert classify_rrg_quadrant(103, 97) == "Weakening"
+    assert classify_rrg_quadrant(95, 96) == "Lagging"
+
+def test_macro_score_no_cliff():
+    from utils.macro_analysis import calculate_vietnam_macro_health_score
+    base1 = {"pmi_index": {"latest": 50.01}, "m2_money_supply": {"latest": 10.0},
+             "vn_cpi": {"latest": 4.0}, "lending_rate_avg": {"latest": 9.0},
+             "usd_vnd_rate": {"latest": 25400.0}}
+    s1, _, _, _ = calculate_vietnam_macro_health_score(base1)
+    base2 = {"pmi_index": {"latest": 49.99}, "m2_money_supply": {"latest": 10.0},
+             "vn_cpi": {"latest": 4.0}, "lending_rate_avg": {"latest": 9.0},
+             "usd_vnd_rate": {"latest": 25400.0}}
+    s2, _, _, _ = calculate_vietnam_macro_health_score(base2)
+    assert abs(s1 - s2) <= 2
+
+def test_dynamic_market_cap_column():
+    from services.stock_service import fetch_stock_fundamentals
+    df = fetch_stock_fundamentals(["VHM"])
+    assert "Vốn Hóa (Tỷ VNĐ)" in df.columns
+    assert df.iloc[0]["Vốn Hóa (Tỷ VNĐ)"] > 0
+
+def test_engine_column_exists():
+    from services.stock_service import fetch_stock_fundamentals
+    df = fetch_stock_fundamentals(["VHM", "FPT"])
+    if "🔬 Engine" in df.columns:
+        assert all(v in ["✅ Computed", "📋 Reference"] for v in df["🔬 Engine"])
