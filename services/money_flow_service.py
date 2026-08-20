@@ -3,7 +3,7 @@ Sector Capital Rotation and Money Flow Intelligence Engine.
 Calculates Relative Rotation Graph (RRG) coordinates, Net Capital Inflow/Outflow,
 and generates AI-powered sector rotation insights.
 """
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -24,6 +24,7 @@ SECTOR_MONEY_FLOW_DATA: List[Dict[str, Any]] = [
         "recommendation": "🚀 TĂNG TỶ TRỌNG",
         "status_color": "#2ECC71",
         "top_stocks": ["VHM", "KDH", "NLG", "DXG", "PDR"],
+        "is_live_computed": False,
         "summary": "Dòng tiền lớn đổ vào sau khi các nút thắt pháp lý Luật Đất Đai được tháo gỡ. Sức mạnh giá và xung lực đều vượt trội thị trường.",
     },
     {
@@ -40,6 +41,7 @@ SECTOR_MONEY_FLOW_DATA: List[Dict[str, Any]] = [
         "recommendation": "🚀 NẮM GIỮ / MUA GIA TĂNG",
         "status_color": "#2ECC71",
         "top_stocks": ["FPT", "CMG", "CTR", "ELC"],
+        "is_live_computed": False,
         "summary": "Được hỗ trợ bởi làn sóng AI, chuyển đổi số toàn cầu và chính sách ưu đãi thuế bán dẫn. Thu hút mạnh vốn tổ chức và khối ngoại.",
     },
     {
@@ -56,6 +58,7 @@ SECTOR_MONEY_FLOW_DATA: List[Dict[str, Any]] = [
         "recommendation": "🚀 NẮM GIỮ",
         "status_color": "#2ECC71",
         "top_stocks": ["SSI", "VCI", "HCM", "VND", "MBS"],
+        "is_live_computed": False,
         "summary": "Hưởng lợi trực tiếp từ thanh khoản thị trường tăng cao và kỳ vọng nâng hạng thị trường chứng khoán FTSE.",
     },
     {
@@ -72,6 +75,7 @@ SECTOR_MONEY_FLOW_DATA: List[Dict[str, Any]] = [
         "recommendation": "🔄 MUA ĐÓN ĐẦU",
         "status_color": "#00ADB5",
         "top_stocks": ["VCG", "HHV", "C4G", "KSB"],
+        "is_live_computed": False,
         "summary": "Xung lực dòng tiền tăng vọt (Momentum > 103) đang kéo chỉ số RS dịch chuyển từ vùng Tụt Hậu sang Dẫn Dắt khi tiến độ giải ngân Q3-Q4 tăng tốc.",
     },
     {
@@ -88,6 +92,7 @@ SECTOR_MONEY_FLOW_DATA: List[Dict[str, Any]] = [
         "recommendation": "🔄 MUA TÍCH LŨY",
         "status_color": "#00ADB5",
         "top_stocks": ["PC1", "GEG", "HDG", "REE", "POW"],
+        "is_live_computed": False,
         "summary": "Dòng tiền quay trở lại sau khi cơ chế DPPA và Quy hoạch điện VIII được cụ thể hóa, triển vọng doanh nghiệp điện năng lượng tái tạo phục hồi.",
     },
     {
@@ -104,6 +109,7 @@ SECTOR_MONEY_FLOW_DATA: List[Dict[str, Any]] = [
         "recommendation": "⚠️ QUAN SÁT / CHỐT LỜI TỪNG PHẦN",
         "status_color": "#F39C12",
         "top_stocks": ["VCB", "BID", "CTG", "TCB", "MBB", "ACB"],
+        "is_live_computed": False,
         "summary": "Giá vẫn ở mức cao nhưng xung lực tiền bắt đầu chậm lại do dòng tiền chốt lời luân chuyển sang các nhóm có beta cao hơn (BĐS, Chứng khoán).",
     },
     {
@@ -120,6 +126,7 @@ SECTOR_MONEY_FLOW_DATA: List[Dict[str, Any]] = [
         "recommendation": "⚠️ QUAN SÁT",
         "status_color": "#F39C12",
         "top_stocks": ["MWG", "PNJ", "MSN", "VNM"],
+        "is_live_computed": False,
         "summary": "Đang trong nhịp tích lũy điều chỉnh, sức cầu tiêu dùng nội địa cần thêm thời gian để tăng trưởng bứt phá.",
     },
     {
@@ -136,6 +143,7 @@ SECTOR_MONEY_FLOW_DATA: List[Dict[str, Any]] = [
         "recommendation": "🛑 THEO DÕI VÙNG ĐÁY",
         "status_color": "#E74C3C",
         "top_stocks": ["HPG", "HSG", "NKG"],
+        "is_live_computed": False,
         "summary": "Chịu áp lực từ giá thép thế giới và biên lợi nhuận thu hẹp, dòng tiền tạm thời rút ra để chờ đợi điểm cân bằng giá.",
     },
     {
@@ -152,6 +160,7 @@ SECTOR_MONEY_FLOW_DATA: List[Dict[str, Any]] = [
         "recommendation": "🛑 HẠ TỶ TRỌNG",
         "status_color": "#E74C3C",
         "top_stocks": ["GAS", "PVD", "PVS", "BSR", "PLX"],
+        "is_live_computed": False,
         "summary": "Giá dầu Brent điều chỉnh giảm gây áp lực tâm lý ngắn hạn, thanh khoản suy giảm và dòng tiền ngoại bán ròng nhẹ.",
     },
     {
@@ -168,9 +177,42 @@ SECTOR_MONEY_FLOW_DATA: List[Dict[str, Any]] = [
         "recommendation": "🛑 QUAN SÁT",
         "status_color": "#E74C3C",
         "top_stocks": ["DGC", "DCM", "DPM", "CSV"],
+        "is_live_computed": False,
         "summary": "Hiệu suất yếu hơn thị trường chung, chờ đợi tín hiệu phục hồi giá hàng hóa hóa chất thế giới.",
     },
 ]
+
+
+def compute_rrg_from_prices(sector_prices: pd.Series, benchmark_prices: pd.Series, rs_lookback=52, mom_lookback=12) -> Tuple[float, float]:
+    """Compute RRG coordinates from price series."""
+    if len(sector_prices) < rs_lookback or len(benchmark_prices) < rs_lookback:
+        return 100.0, 100.0
+        
+    rs = sector_prices / benchmark_prices
+    rs_sma = rs.rolling(window=rs_lookback).mean()
+    rs_ratio = (rs / rs_sma) * 100.0
+    
+    rs_ratio_sma = rs_ratio.rolling(window=mom_lookback).mean()
+    rs_momentum = (rs_ratio / rs_ratio_sma) * 100.0
+    
+    curr_ratio = float(rs_ratio.iloc[-1])
+    curr_mom = float(rs_momentum.iloc[-1])
+    
+    if pd.isna(curr_ratio) or pd.isna(curr_mom):
+        return 100.0, 100.0
+        
+    return curr_ratio, curr_mom
+
+def classify_rrg_quadrant(rs_ratio: float, rs_momentum: float) -> str:
+    """Classify RRG quadrant based on coordinates."""
+    if rs_ratio >= 100 and rs_momentum >= 100:
+        return "Leading"
+    elif rs_ratio < 100 and rs_momentum >= 100:
+        return "Improving"
+    elif rs_ratio >= 100 and rs_momentum < 100:
+        return "Weakening"
+    else:
+        return "Lagging"
 
 
 def get_sector_money_flow_dataframe() -> pd.DataFrame:

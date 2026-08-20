@@ -17,6 +17,7 @@ if _PARENT_DIR not in sys.path:
     sys.path.insert(0, _PARENT_DIR)
 
 from utils.helpers import is_valid_ticker
+from services.valuation_engine import compute_valuation
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,13 @@ STOCK_FUNDAMENTALS_REGISTRY: Dict[str, Dict[str, Any]] = {
         "official_roe": 33.6,
         "market_cap_bil": 585000,
         "target_price": 88000,
+        "eps_ttm": 19472.22,
+        "bvps": 57953.04,
+        "beta": 1.3,
+        "shares_outstanding": 8345.22,
+        "eps_growth": 0.15,
+        "target_pe_multiple": 8,
+        "valuation_weights": {"pe": 0.3, "pb": 0.7},
         "valuation_method": "RNAV 30 Đại Dự Án + P/E 12x",
     },
     "VIC": {
@@ -64,6 +72,13 @@ STOCK_FUNDAMENTALS_REGISTRY: Dict[str, Dict[str, Any]] = {
         "official_roe": 8.5,
         "market_cap_bil": 19400,
         "target_price": 22500,
+        "eps_ttm": 1558.56,
+        "bvps": 18336.0,
+        "beta": 1.3,
+        "shares_outstanding": 1121.39,
+        "eps_growth": 0.20,
+        "target_pe_multiple": 15,
+        "valuation_weights": {"pe": 0.3, "pb": 0.7},
         "valuation_method": "RNAV Quỹ Đất TP.HCM + P/B 1.5x",
     },
     "NLG": {
@@ -74,6 +89,13 @@ STOCK_FUNDAMENTALS_REGISTRY: Dict[str, Dict[str, Any]] = {
         "official_roe": 9.8,
         "market_cap_bil": 12100,
         "target_price": 30000,
+        "eps_ttm": 1468.75,
+        "bvps": 14987.24,
+        "beta": 1.4,
+        "shares_outstanding": 514.89,
+        "eps_growth": 0.25,
+        "target_pe_multiple": 20,
+        "valuation_weights": {"pe": 0.3, "pb": 0.7},
         "valuation_method": "RNAV Waterpoint & Mizuki + P/B 1.4x",
     },
     "DXG": {
@@ -84,6 +106,13 @@ STOCK_FUNDAMENTALS_REGISTRY: Dict[str, Dict[str, Any]] = {
         "official_roe": 4.2,
         "market_cap_bil": 13900,
         "target_price": 14500,
+        "eps_ttm": 176.66,
+        "bvps": 4206.19,
+        "beta": 1.6,
+        "shares_outstanding": 1275.23,
+        "eps_growth": 0.30,
+        "target_pe_multiple": 15,
+        "valuation_weights": {"pe": 0.3, "pb": 0.7},
         "valuation_method": "Forward EPS Hồi Phục Môi Giới + RNAV",
     },
     "DIG": {
@@ -94,6 +123,13 @@ STOCK_FUNDAMENTALS_REGISTRY: Dict[str, Dict[str, Any]] = {
         "official_roe": 3.1,
         "market_cap_bil": 8300,
         "target_price": 13500,
+        "eps_ttm": 1066.33,
+        "bvps": 34397.74,
+        "beta": 1.6,
+        "shares_outstanding": 794.26,
+        "eps_growth": 0.15,
+        "target_pe_multiple": 15,
+        "valuation_weights": {"pe": 0.3, "pb": 0.7},
         "valuation_method": "RNAV Long Tân & Đại Phước",
     },
     "PDR": {
@@ -228,6 +264,13 @@ STOCK_FUNDAMENTALS_REGISTRY: Dict[str, Dict[str, Any]] = {
         "official_roe": 22.5,
         "market_cap_bil": 510000,
         "target_price": 72000,
+        "eps_ttm": 5169.64,
+        "bvps": 22976.18,
+        "beta": 1.0,
+        "shares_outstanding": 8808.29,
+        "eps_growth": 0.15,
+        "target_pe_multiple": 15,
+        "valuation_weights": {"pe": 0.2, "pb": 0.8},
         "valuation_method": "Justified P/B 2.4x + Nợ Xấu Thấp Nhất",
     },
     "BID": {
@@ -310,6 +353,13 @@ STOCK_FUNDAMENTALS_REGISTRY: Dict[str, Dict[str, Any]] = {
         "official_roe": 12.6,
         "market_cap_bil": 52000,
         "target_price": 25500,
+        "eps_ttm": 1117.14,
+        "bvps": 8866.19,
+        "beta": 1.5,
+        "shares_outstanding": 2659.85,
+        "eps_growth": 0.18,
+        "target_pe_multiple": 20,
+        "valuation_weights": {"pe": 0.4, "pb": 0.6},
         "valuation_method": "P/B 1.8x Vốn Chủ Mới + Hệ Thống KRX",
     },
     "VCI": {
@@ -362,6 +412,13 @@ STOCK_FUNDAMENTALS_REGISTRY: Dict[str, Dict[str, Any]] = {
         "official_roe": 28.0,
         "market_cap_bil": 165000,
         "target_price": 88000,
+        "eps_ttm": 3594.87,
+        "bvps": 12838.82,
+        "beta": 1.3,
+        "shares_outstanding": 2353.78,
+        "eps_growth": 0.22,
+        "target_pe_multiple": 25,
+        "valuation_weights": {"pe": 0.8, "pb": 0.2},
         "valuation_method": "Target P/E 25.5x trên Forward EPS 2026 (+22% CAGR)",
     },
     "CMG": {
@@ -414,6 +471,13 @@ STOCK_FUNDAMENTALS_REGISTRY: Dict[str, Dict[str, Any]] = {
         "official_roe": 12.0,
         "market_cap_bil": 168000,
         "target_price": 28000,
+        "eps_ttm": 1577.78,
+        "bvps": 13148.17,
+        "beta": 1.4,
+        "shares_outstanding": 7887.32,
+        "eps_growth": 0.25,
+        "target_pe_multiple": 18,
+        "valuation_weights": {"pe": 0.5, "pb": 0.5},
         "valuation_method": "Dung Quất 2 Tăng 5.6M Tấn HRC + P/E 15x",
     },
     "HSG": {
@@ -486,6 +550,13 @@ STOCK_FUNDAMENTALS_REGISTRY: Dict[str, Dict[str, Any]] = {
         "official_roe": 16.5,
         "market_cap_bil": 106000,
         "target_price": 92000,
+        "eps_ttm": 3240.0,
+        "bvps": 19636.36,
+        "beta": 1.0,
+        "shares_outstanding": 1454.05,
+        "eps_growth": 0.35,
+        "target_pe_multiple": 30,
+        "valuation_weights": {"pe": 0.7, "pb": 0.3},
         "valuation_method": "Bách Hóa Xanh Đóng Góp Lợi Nhuận + P/E 24x",
     },
     "PNJ": {
@@ -611,12 +682,25 @@ def fetch_stock_fundamentals(tickers: List[str]) -> pd.DataFrame:
         # Official metrics from Vietstock / FireAnt
         pe_ratio = profile.get("official_pe", 12.5)
         roe = profile.get("official_roe", 15.0)
-        market_cap_bil = profile.get("market_cap_bil", 10000)
-        target_price = profile.get("target_price", int(round(market_price * 1.25 / 500) * 500))
-        val_method = profile.get("valuation_method", "Target P/E & Forward EPS")
+        
+        # Compute dynamic market cap
+        shares_mil = profile.get("shares_outstanding")
+        if shares_mil:
+            market_cap_bil = round(market_price * shares_mil / 1000)
+        else:
+            market_cap_bil = profile.get("market_cap_bil", 10000)
+            
+        # Compute dynamic valuation
+        val_result = compute_valuation(profile, live_price=market_price)
+        target_price = val_result.get("computed_target", 0)
+        val_method = val_result.get("computed_method_desc", "Hardcoded")
+        is_engine_computed = val_result.get("is_engine_computed", False)
 
         # Dynamic Upside calculation
-        upside_pct = round(((target_price - market_price) / market_price) * 100, 1)
+        if market_price > 0:
+            upside_pct = round(((target_price - market_price) / market_price) * 100, 1)
+        else:
+            upside_pct = 0.0
 
         stock_rows.append({
             "Mã CP": sym,
@@ -630,6 +714,7 @@ def fetch_stock_fundamentals(tickers: List[str]) -> pd.DataFrame:
             "ROE (%)": roe,
             "Mô Hình Định Giá & Động Lực": val_method,
             "Vốn Hóa (Tỷ VNĐ)": market_cap_bil,
+            "🔬 Engine": "✅ Computed" if is_engine_computed else "📋 Reference"
         })
 
     return pd.DataFrame(stock_rows)
