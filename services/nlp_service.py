@@ -224,7 +224,17 @@ def fetch_and_analyze_news(
     is_gemini = active_key.startswith("AIzaSy") or "gemini" in active_provider.lower() or "gemini" in active_model.lower()
 
     try:
-        feed = feedparser.parse(rss_url)
+        try:
+            resp = requests.get(
+                rss_url,
+                headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"},
+                timeout=3.0
+            )
+            feed = feedparser.parse(resp.content) if resp.status_code == 200 else feedparser.parse(rss_url)
+        except Exception as rss_net_err:
+            logger.warning(f"Fast RSS network fetch error: {rss_net_err}. Using benchmark policy dataset.")
+            return FALLBACK_NEWS_ANALYSIS[:max_items]
+
         entries = getattr(feed, "entries", [])
         
         if not entries:
