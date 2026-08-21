@@ -858,7 +858,7 @@ with tab_money_flow:
         live_flow_data = compute_live_sector_money_flow()
         is_live = any(s.get("is_live_computed", False) for s in live_flow_data)
         if is_live:
-            st.markdown('<span style="background: rgba(46, 204, 113, 0.15); color: #2ECC71; padding: 4px 12px; border-radius: 12px; border: 1px solid rgba(46, 204, 113, 0.3); font-weight: bold; font-size: 0.85rem;">🟢 DỮ LIỆU DÒNG TIỀN AGGREGATED REALTIME TỪ SÀN HOSE/HNX (20+ CỔ PHIẾU ĐẠI DIỆN)</span><br><br>', unsafe_allow_html=True)
+            st.markdown('<span style="background: rgba(46, 204, 113, 0.15); color: #2ECC71; padding: 4px 12px; border-radius: 12px; border: 1px solid rgba(46, 204, 113, 0.3); font-weight: bold; font-size: 0.85rem;">🟢 DỮ LIỆU DÒNG TIỀN AGGREGATED REALTIME TỪ RỔ VN100 & VNX ALLSHARE (116 CỔ PHIẾU NIÊM YẾT)</span><br><br>', unsafe_allow_html=True)
         else:
             st.markdown('<span style="background: rgba(255, 152, 0, 0.15); color: #FF9800; padding: 4px 12px; border-radius: 12px; border: 1px solid rgba(255, 152, 0, 0.3); font-weight: bold; font-size: 0.85rem;">🟠 CHẾ ĐỘ THAM CHIẾU CHUẨN (BASELINE BENCHMARK) — NGOÀI GIỜ GIAO DỊCH HOẶC API OFFLINE</span><br><br>', unsafe_allow_html=True)
     except Exception:
