@@ -652,7 +652,7 @@ def _fetch_single_live_quote(symbol: str) -> Tuple[str, Optional[int], Optional[
 
 
 @st.cache_data(ttl=60, show_spinner=False)
-def fetch_stock_fundamentals(tickers: List[str]) -> pd.DataFrame:
+def fetch_stock_fundamentals(tickers: List[str], regime_code: str = "TRANSITION") -> pd.DataFrame:
     """
     Fetch live market prices and compute accurate institutional valuation metrics synchronized with Vietstock.vn.
     Cached for 60 seconds (1 minute) for live market synchronization.
@@ -706,7 +706,7 @@ def fetch_stock_fundamentals(tickers: List[str]) -> pd.DataFrame:
             market_cap_bil = profile.get("market_cap_bil", 10000)
             
         # Compute dynamic valuation
-        val_result = compute_valuation(profile, live_price=market_price)
+        val_result = compute_valuation(profile, live_price=market_price, regime_code=regime_code)
         target_price = val_result.get("computed_target", 0)
         val_method = val_result.get("computed_method_desc", "Hardcoded")
         is_engine_computed = val_result.get("is_engine_computed", False)
@@ -716,6 +716,8 @@ def fetch_stock_fundamentals(tickers: List[str]) -> pd.DataFrame:
             upside_pct = round(((target_price - market_price) / market_price) * 100, 1)
         else:
             upside_pct = 0.0
+
+        mos_pct = round(val_result.get("applied_mos", 0.15) * 100, 1)
 
         stock_rows.append({
             "Mã CP": sym,
@@ -729,6 +731,7 @@ def fetch_stock_fundamentals(tickers: List[str]) -> pd.DataFrame:
             "ROE (%)": roe,
             "Mô Hình Định Giá & Động Lực": val_method,
             "Vốn Hóa (Tỷ VNĐ)": market_cap_bil,
+            "🛡️ MoS (%)": mos_pct,
             "🔬 Engine": "✅ Computed" if is_engine_computed else "📋 Reference"
         })
 

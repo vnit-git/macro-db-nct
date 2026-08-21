@@ -70,10 +70,12 @@ def calc_blended_target(forward_pe_target: int, justified_pb_target: int, weight
     desc = f"Blended ({norm_weight_pe:.0%} FwdPE + {norm_weight_pb:.0%} JP/B): {blended_target:,.0f}đ"
     return blended_target, desc
 
-def compute_valuation(profile: Dict, live_price: int = 0) -> Dict:
+def compute_valuation(profile: Dict, live_price: int = 0, regime_code: str = "TRANSITION") -> Dict:
     """
     Master orchestrator to compute valuation based on available profile data.
     """
+    from services.risk_allocator import calc_dynamic_mos
+    
     # Extract needed fields from profile
     eps_ttm = profile.get("eps_ttm")
     eps_growth = profile.get("eps_growth")
@@ -90,6 +92,8 @@ def compute_valuation(profile: Dict, live_price: int = 0) -> Dict:
     beta = profile.get("beta", 1.0)
     val_weights = profile.get("valuation_weights", {"pe": 0.5, "pb": 0.5})
     
+    mos = calc_dynamic_mos(profile.get("industry", ""), beta, regime_code=regime_code)
+    
     pe_target = 0
     pe_desc = ""
     pb_target = 0
@@ -99,14 +103,16 @@ def compute_valuation(profile: Dict, live_price: int = 0) -> Dict:
         pe_target, pe_desc = calc_forward_pe_target(
             eps_ttm=eps_ttm,
             eps_growth_rate=eps_growth,
-            target_pe_multiple=target_pe
+            target_pe_multiple=target_pe,
+            margin_of_safety=mos
         )
         
     if bvps is not None and roe is not None and bvps > 0:
         pb_target, pb_desc = calc_justified_pb_target(
             bvps=bvps,
             roe=roe,
-            beta=beta
+            beta=beta,
+            margin_of_safety=mos
         )
         
     blended_target, blended_desc = calc_blended_target(
@@ -120,6 +126,7 @@ def compute_valuation(profile: Dict, live_price: int = 0) -> Dict:
             "computed_target": blended_target,
             "computed_method_desc": blended_desc,
             "is_engine_computed": True,
+            "applied_mos": mos,
             "details": {
                 "pe_target": pe_target,
                 "pe_desc": pe_desc,
@@ -134,6 +141,7 @@ def compute_valuation(profile: Dict, live_price: int = 0) -> Dict:
             "computed_target": fallback_target,
             "computed_method_desc": profile.get("valuation_method", "Hardcoded (Data Insufficient)"),
             "is_engine_computed": False,
+            "applied_mos": mos,
             "details": {}
         }
 

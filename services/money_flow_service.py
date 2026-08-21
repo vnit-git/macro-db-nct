@@ -3,7 +3,7 @@ Sector Capital Rotation and Money Flow Intelligence Engine.
 Calculates Relative Rotation Graph (RRG) coordinates, Net Capital Inflow/Outflow,
 and generates AI-powered sector rotation insights.
 """
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -325,10 +325,14 @@ def render_rrg_chart(data: List[Dict[str, Any]]) -> go.Figure:
         paper_bgcolor="#161B26",
         plot_bgcolor="#0F131C",
         height=520,
-        margin=dict(l=40, r=40, t=50, b=40),
+        margin=dict(t=0, l=0, r=0, b=0),
     )
 
     return fig
+
+
+def compute_live_sector_money_flow():
+    return SECTOR_MONEY_FLOW_DATA
 
 
 def render_net_inflow_chart(data: List[Dict[str, Any]]) -> go.Figure:
@@ -403,3 +407,84 @@ def render_sector_treemap(data: List[Dict[str, Any]]) -> go.Figure:
     )
 
     return fig
+
+def compute_live_sector_money_flow(stock_registry: Optional[Dict[str, Dict]] = None, live_quotes: Optional[Dict[str, Tuple]] = None) -> List[Dict[str, Any]]:
+    import copy
+    sectors_base = copy.deepcopy(SECTOR_MONEY_FLOW_DATA)
+    
+    if live_quotes is None:
+        try:
+            from services.stock_service import _fetch_single_live_quote
+            from concurrent.futures import ThreadPoolExecutor
+            
+            all_syms = set()
+            for sec in sectors_base:
+                for s in sec.get("top_stocks", []):
+                    all_syms.add(s)
+                    
+            with ThreadPoolExecutor(max_workers=12) as executor:
+                results = list(executor.map(_fetch_single_live_quote, list(all_syms)))
+                
+            live_quotes = {}
+            for sym, price, chg, name in results:
+                if price is not None:
+                    live_quotes[sym] = (price, chg, name)
+        except Exception:
+            live_quotes = {}
+            
+    if not live_quotes:
+        return sectors_base
+        
+    market_chg_sum = 0.0
+    market_chg_count = 0
+    for sym, (p, c, n) in live_quotes.items():
+        if c is not None:
+            market_chg_sum += c
+            market_chg_count += 1
+            
+    market_avg_chg = market_chg_sum / market_chg_count if market_chg_count > 0 else 0.0
+    
+    for sector in sectors_base:
+        top_stocks = sector.get("top_stocks", [])
+        if not top_stocks:
+            continue
+            
+        total_price_change = 0.0
+        valid_count = 0
+        
+        for sym in top_stocks:
+            if sym in live_quotes:
+                p, chg, n = live_quotes[sym]
+                if chg is not None:
+                    total_price_change += chg
+                    valid_count += 1
+                    
+        if valid_count > 0:
+            avg_chg = total_price_change / valid_count
+            sector["price_change_pct"] = round(avg_chg, 2)
+            
+            relative_perf = avg_chg - market_avg_chg
+            sector["rs_ratio"] = round(sector["prev_ratio"] + relative_perf * 1.5, 1)
+            sector["rs_momentum"] = round(sector["prev_momentum"] + relative_perf * 2.0, 1)
+            
+            sector["net_inflow_bil"] = int(sector["net_inflow_bil"] + avg_chg * 100)
+            sector["liquidity_pct"] = round(sector["liquidity_pct"] * (1.0 + abs(avg_chg)/10.0), 1)
+            
+            sector["quadrant"] = classify_rrg_quadrant(sector["rs_ratio"], sector["rs_momentum"])
+            
+            if sector["quadrant"] == "Leading":
+                sector["status_color"] = "#2ECC71"
+                sector["recommendation"] = "🚀 NẮM GIỮ / MUA GIA TĂNG"
+            elif sector["quadrant"] == "Improving":
+                sector["status_color"] = "#00ADB5"
+                sector["recommendation"] = "🔄 MUA ĐÓN ĐẦU"
+            elif sector["quadrant"] == "Weakening":
+                sector["status_color"] = "#F39C12"
+                sector["recommendation"] = "⚠️ QUAN SÁT / CHỐT LỜI TỪNG PHẦN"
+            else:
+                sector["status_color"] = "#E74C3C"
+                sector["recommendation"] = "🛑 THEO DÕI VÙNG ĐÁY"
+                
+            sector["is_live_computed"] = True
+            
+    return sectors_base
