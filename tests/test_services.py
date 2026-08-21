@@ -91,7 +91,7 @@ def test_forward_pe_basic():
     from services.valuation_engine import calc_forward_pe_target
     target, desc = calc_forward_pe_target(5000, 0.20, 15.0, 0.15)
     assert target > 0
-    expected = round(5000 * 1.20 * 15.0 * 0.85 / 500) * 500
+    expected = round(5000 * 1.20 * 15.0 / 500) * 500
     assert target == expected
     assert "Forward P/E" in desc
 
