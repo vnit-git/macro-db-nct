@@ -41,6 +41,15 @@ from utils.macro_analysis import (
     render_m2_actual_volume_chart,
 )
 
+from services.regime_engine import detect_market_regime
+from services.stress_test import simulate_macro_stress
+from services.risk_allocator import calc_position_sizing
+try:
+    from services.money_flow_service import compute_live_sector_money_flow
+except ImportError:
+    pass
+
+
 
 def get_safe_secret(key: str, default: str = "") -> str:
     """Safely retrieve a secret without throwing StreamlitSecretNotFoundError."""
@@ -56,7 +65,7 @@ def get_safe_secret(key: str, default: str = "") -> str:
 # 1. Page Configuration & Professional Styling
 # ==============================================================================
 st.set_page_config(
-    page_title="Vietnam Macro & Equity Terminal Pro v1.2",
+    page_title="Vietnam Macro & Equity Terminal Pro v2.0 Alpha Pro",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -143,6 +152,62 @@ st.markdown(
         border-radius: 12px;
         font-size: 0.75rem;
         font-weight: 600;
+    }
+    /* 3D Push-Button Segmented Tabs Styling */
+    div[data-testid="stTabs"] {
+        margin-top: 15px;
+        margin-bottom: 20px;
+    }
+    div[data-baseweb="tab-list"] {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        background: transparent !important;
+        border: none !important;
+        padding: 4px 0px !important;
+        gap: 12px !important;
+    }
+    button[data-baseweb="tab"] {
+        flex: 1 1 auto !important;
+        min-width: 170px !important;
+        background: linear-gradient(180deg, #222836 0%, #171B26 100%) !important;
+        color: #CFD8DC !important;
+        font-size: 0.95rem !important;
+        font-weight: 700 !important;
+        border-radius: 10px !important;
+        border: 1.5px solid #2F384C !important;
+        padding: 12px 20px !important;
+        cursor: pointer !important;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+        transition: all 0.2s ease-in-out !important;
+        text-align: center !important;
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+    }
+    button[data-baseweb="tab"]:hover {
+        background: linear-gradient(180deg, #2A3346 0%, #1E2535 100%) !important;
+        color: #00FFF5 !important;
+        border-color: #00ADB5 !important;
+        box-shadow: 0 6px 14px rgba(0, 173, 181, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+        transform: translateY(-2px) !important;
+    }
+    button[data-baseweb="tab"][aria-selected="true"] {
+        background: linear-gradient(180deg, #00ADB5 0%, #007A80 100%) !important;
+        color: #FFFFFF !important;
+        font-weight: 800 !important;
+        border: 1.5px solid #00FFF5 !important;
+        box-shadow: 0 0 20px rgba(0, 255, 245, 0.4), 0 6px 15px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+        transform: translateY(-2px) !important;
+    }
+    button[data-baseweb="tab"][aria-selected="true"] * {
+        color: #FFFFFF !important;
+        font-weight: 800 !important;
+    }
+    div[data-baseweb="tab-highlight"] {
+        display: none !important;
+    }
+    div[data-baseweb="tab-border"] {
+        display: none !important;
     }
     </style>
     """,
@@ -301,7 +366,7 @@ with st.sidebar:
         st.rerun()
 
     st.markdown("---")
-    st.caption("Vietnam Macro & Equity Terminal Pro • **v1.2**")
+    st.caption("Vietnam Macro & Equity Terminal Pro • **v2.0 Alpha Pro**")
 
 # ==============================================================================
 # 3. Main Dashboard Header & Market Thermometer
@@ -311,7 +376,7 @@ with col_title:
     st.markdown(
         '<p class="terminal-title">VIETNAM MACRO & EQUITY TERMINAL PRO '
         '<span style="font-size: 0.95rem; vertical-align: middle; background: rgba(0, 173, 181, 0.2); '
-        'color: #00FFF5; border: 1px solid #00ADB5; padding: 2px 10px; border-radius: 8px; font-weight: 700; letter-spacing: 0.5px;">v1.2</span></p>',
+        'color: #00FFF5; border: 1px solid #00ADB5; padding: 2px 10px; border-radius: 8px; font-weight: 700; letter-spacing: 0.5px;">v2.0 Alpha Pro</span></p>',
         unsafe_allow_html=True,
     )
     st.markdown('<p class="terminal-subtitle">NCT-System : Phân Tích Vĩ Mô Toàn Diện, Lượng Hóa Chính Sách & Định Giá Cổ Phiếu Tự Động Hóa</p>', unsafe_allow_html=True)
@@ -431,6 +496,42 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# Market Regime Widget
+mapped_macro = {
+    "m2_growth": macro_data.get("m2_money_supply", {}).get("latest", 10.0),
+    "pmi": macro_data.get("pmi_index", {}).get("latest", 50.0),
+    "cpi": macro_data.get("vn_cpi", {}).get("latest", 3.0),
+    "tpcp_10y": macro_data.get("tpcp_10y", {}).get("latest", 2.5),
+    "interbank_on": macro_data.get("interbank_on", {}).get("latest", 1.0),
+    "usd_vnd": macro_data.get("usd_vnd_rate", {}).get("latest", 24000)
+}
+regime_info = detect_market_regime(mapped_macro, vnindex_change_pct=1.5)
+
+st.markdown(
+    f"""
+    <div style="background: linear-gradient(135deg, #161B26 0%, #0F131C 100%); border: 1px solid #2B313E; border-left: 6px solid #00FFF5; border-radius: 10px; padding: 16px 20px; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 8px;">
+            <div>
+                <span style="font-size: 1.15rem; font-weight: 800; color: #FFFFFF;">CHẾ ĐỘ THỊ TRƯỜNG: </span>
+                <span style="font-size: 1.15rem; font-weight: 800; color: #00FFF5;">{regime_info['regime']}</span>
+            </div>
+            <div style="background-color: rgba(0, 173, 181, 0.15); border: 1px solid #00FFF5; border-radius: 20px; padding: 4px 14px;">
+                <span style="font-size: 0.85rem; color: #B0BEC5;">ĐIỂM CHẾ ĐỘ: </span>
+                <span style="font-size: 1.1rem; font-weight: 900; color: #00FFF5;">{regime_info['macro_score']} / 100</span>
+            </div>
+        </div>
+        <p style="font-size: 0.92rem; color: #ECEFF1; line-height: 1.5; margin-bottom: 12px;">
+            <strong>Tóm tắt chế độ:</strong> {regime_info['summary']}
+        </p>
+        <div style="display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.8rem; font-weight: 600;">
+            <span style="background: rgba(0,173,181,0.15); color: #00FFF5; padding: 3px 10px; border-radius: 12px; border: 1px solid rgba(0,173,181,0.3);">📈 Phân Bổ: {regime_info['equity_allocation_rec']} | 💵 Tiền mặt: {regime_info['cash_allocation_rec']}</span>
+            <span style="background: rgba(46, 204, 113, 0.15); color: #2ECC71; padding: 3px 10px; border-radius: 12px; border: 1px solid rgba(46, 204, 113, 0.3);">🟢 Dẫn dắt: {", ".join(regime_info['leading_sectors'])}</span>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
 macro_filter = st.radio(
     "Lọc nhóm chỉ số:",
     options=["Tất cả chỉ số trọng yếu", "Tiền tệ & Lãi suất", "Sản xuất & Kinh tế thực", "Tỷ giá & Toàn cầu"],
@@ -541,11 +642,12 @@ st.markdown("<br>", unsafe_allow_html=True)
 # ==============================================================================
 # 5. Multi-Tab Advanced Analytics Architecture
 # ==============================================================================
-tab_terminal, tab_money_flow, tab_macro_radar, tab_sector_screener = st.tabs([
-    "🏛️ Terminal Tương Tác Chính Sách & Cổ Phiếu",
-    "🧭 Luân Chuyển Dòng Tiền & Ma Trận RRG",
-    "🌐 Radar Chu Kỳ Vĩ Mô & Tương Quan",
-    "📊 Bảng Định Giá Ngành & Xuất Báo Cáo",
+tab_terminal, tab_money_flow, tab_macro_radar, tab_sector_screener, tab_stress_test = st.tabs([
+    "🏛️ Phân Tích Chính Sách",
+    "🧭 Luân Chuyển Dòng Tiền & RRG",
+    "🌐 Radar Chu Kỳ Vĩ Mô",
+    "📊 Định Giá & Quản Trị Vị Thế",
+    "🚨 Giả Lập Stress-Test Vĩ Mô",
 ])
 
 # ==============================================================================
@@ -666,6 +768,7 @@ with tab_terminal:
                         "P/E (Lần)": st.column_config.NumberColumn("P/E", format="%.1fx"),
                         "ROE (%)": st.column_config.NumberColumn("ROE", format="%.1f%%"),
                         "Vốn Hóa (Tỷ VNĐ)": st.column_config.NumberColumn("Vốn Hóa", format="%,.0f Tỷ"),
+                        "🛡️ MoS (%)": st.column_config.NumberColumn("🛡️ Biên An Toàn", format="%.1f%%", help="Margin of Safety được tính động theo Beta, Ngành và Market Regime."),
                         "🔬 Engine": st.column_config.TextColumn(
                             "🔬 Nguồn",
                             width="small",
@@ -751,22 +854,32 @@ with tab_money_flow:
         unsafe_allow_html=True,
     )
 
+    try:
+        live_flow_data = compute_live_sector_money_flow()
+        is_live = any(s.get("is_live_computed", False) for s in live_flow_data)
+        if is_live:
+            st.markdown('<span style="background: rgba(46, 204, 113, 0.15); color: #2ECC71; padding: 4px 12px; border-radius: 12px; border: 1px solid rgba(46, 204, 113, 0.3); font-weight: bold; font-size: 0.85rem;">🟢 DỮ LIỆU DÒNG TIỀN AGGREGATED REALTIME TỪ SÀN HOSE/HNX (20+ CỔ PHIẾU ĐẠI DIỆN)</span><br><br>', unsafe_allow_html=True)
+        else:
+            st.markdown('<span style="background: rgba(255, 152, 0, 0.15); color: #FF9800; padding: 4px 12px; border-radius: 12px; border: 1px solid rgba(255, 152, 0, 0.3); font-weight: bold; font-size: 0.85rem;">🟠 CHẾ ĐỘ THAM CHIẾU CHUẨN (BASELINE BENCHMARK) — NGOÀI GIỜ GIAO DỊCH HOẶC API OFFLINE</span><br><br>', unsafe_allow_html=True)
+    except Exception:
+        live_flow_data = SECTOR_MONEY_FLOW_DATA
+
     # 1. Main Interactive RRG Chart
-    fig_rrg = render_rrg_chart(SECTOR_MONEY_FLOW_DATA)
+    fig_rrg = render_rrg_chart(live_flow_data)
     st.plotly_chart(fig_rrg, use_container_width=True)
 
     # 2. Dual Sub-Charts: Net Inflow Barometer + Liquidity Treemap
     col_flow1, col_flow2 = st.columns(2)
     with col_flow1:
-        fig_inflow = render_net_inflow_chart(SECTOR_MONEY_FLOW_DATA)
+        fig_inflow = render_net_inflow_chart(live_flow_data)
         st.plotly_chart(fig_inflow, use_container_width=True)
     with col_flow2:
-        fig_treemap = render_sector_treemap(SECTOR_MONEY_FLOW_DATA)
+        fig_treemap = render_sector_treemap(live_flow_data)
         st.plotly_chart(fig_treemap, use_container_width=True)
 
     # 3. Actionable Sector Rotation Table
     st.markdown("##### 📋 Bảng Chi Tiết Luân Chuyển & Khuyến Nghị Hành Động Dòng Tiền")
-    df_sectors = pd.DataFrame(SECTOR_MONEY_FLOW_DATA)[
+    df_sectors = pd.DataFrame(live_flow_data)[
         ["name", "quadrant", "net_inflow_bil", "liquidity_pct", "price_change_pct", "recommendation", "top_stocks", "summary"]
     ].rename(columns={
         "name": "Nhóm Ngành",
@@ -932,6 +1045,7 @@ with tab_sector_screener:
             "P/E (Lần)": st.column_config.NumberColumn("P/E", format="%.1fx"),
             "ROE (%)": st.column_config.NumberColumn("ROE", format="%.1f%%"),
             "Vốn Hóa (Tỷ VNĐ)": st.column_config.NumberColumn("Vốn Hóa", format="%,.0f Tỷ"),
+            "🛡️ MoS (%)": st.column_config.NumberColumn("🛡️ Biên An Toàn", format="%.1f%%", help="Margin of Safety được tính động theo Beta, Ngành và Market Regime."),
             "🔬 Engine": st.column_config.TextColumn(
                 "🔬 Nguồn",
                 width="small",
@@ -940,6 +1054,38 @@ with tab_sector_screener:
             "Mô Hình Định Giá & Động Lực": st.column_config.TextColumn("Cơ Sở Định Giá", width="large"),
         },
     )
+
+    with st.expander("⚖️ Phân Bổ Danh Mục & Quản Trị Vị Thế (Risk Parity & Half-Kelly Sizing)"):
+        capital = st.number_input("Tổng Vốn Đầu Tư (VNĐ)", min_value=10_000_000, value=1_000_000_000, step=100_000_000)
+        selected_tickers = st.multiselect("Chọn cổ phiếu vào danh mục:", options=df_filtered['Mã CP'].tolist(), default=df_filtered['Mã CP'].tolist()[:5])
+        
+        if selected_tickers:
+            df_portfolio = df_filtered[df_filtered['Mã CP'].isin(selected_tickers)].copy()
+            # Restore 'Ngành' for risk_allocator if it expects 'Ngành'
+            if "Nhóm Ngành" in df_portfolio.columns:
+                df_portfolio["Ngành"] = df_portfolio["Nhóm Ngành"]
+            df_portfolio_alloc = calc_position_sizing(df_portfolio, total_capital_vnd=capital)
+            
+            price_col = "Thị Giá Sàn (VNĐ)" if "Thị Giá Sàn (VNĐ)" in df_portfolio_alloc.columns else ("Thị Giá" if "Thị Giá" in df_portfolio_alloc.columns else None)
+            industry_col = "Nhóm Ngành" if "Nhóm Ngành" in df_portfolio_alloc.columns else ("Ngành" if "Ngành" in df_portfolio_alloc.columns else None)
+            
+            show_cols = ['Mã CP']
+            if industry_col: show_cols.append(industry_col)
+            if price_col: show_cols.append(price_col)
+            show_cols.extend(['Tỷ Trọng Đề Xuất (%)', 'Phân Bổ Vốn (Triệu VNĐ)', 'Khối Lượng Mục Tiêu (CP)'])
+            
+            valid_show_cols = [c for c in show_cols if c in df_portfolio_alloc.columns]
+            
+            st.dataframe(
+                df_portfolio_alloc[valid_show_cols],
+                use_container_width=True,
+                column_config={
+                    "Thị Giá Sàn (VNĐ)": st.column_config.NumberColumn("Thị Giá", format="%,d đ"),
+                    "Tỷ Trọng Đề Xuất (%)": st.column_config.NumberColumn("Tỷ Trọng Đề Xuất", format="%.1f%%"),
+                    "Phân Bổ Vốn (Triệu VNĐ)": st.column_config.NumberColumn("Phân Bổ Vốn (Tr)", format="%,.1f"),
+                    "Khối Lượng Mục Tiêu (CP)": st.column_config.NumberColumn("Khối Lượng Mua", format="%,d CP")
+                }
+            )
 
     # Data Export Button
     csv_data = df_filtered.to_csv(index=False).encode("utf-8-sig")
@@ -951,6 +1097,67 @@ with tab_sector_screener:
     )
 
 # ==============================================================================
+# TAB 5: Macro Scenario Stress-Test Simulator
+# ==============================================================================
+with tab_stress_test:
+    st.markdown('<div class="section-header">🚨 GIẢ LẬP CÚ SỐC VĨ MÔ & STRESS-TEST ĐỊNH GIÁ</div>', unsafe_allow_html=True)
+    st.caption("Kiểm thử sức chịu đựng của danh mục trước các cú sốc tỷ giá, lãi suất và phần bù rủi ro vốn cổ phần (ERP).")
+    
+    st.markdown("##### ⚙️ Kịch Bản Cú Sốc (Presets)")
+    sc_cols = st.columns(4)
+    if sc_cols[0].button("🔴 Cú Sốc Tỷ Giá (+5% USD/VND)", use_container_width=True):
+        st.session_state['fx_shock_ui'] = 5.0
+        st.session_state['rate_shock_ui'] = 0.0
+        st.session_state['erp_shock_ui'] = 0.0
+    if sc_cols[1].button("🏦 Tăng Lãi Suất (+100 bps)", use_container_width=True):
+        st.session_state['fx_shock_ui'] = 0.0
+        st.session_state['rate_shock_ui'] = 100.0
+        st.session_state['erp_shock_ui'] = 0.0
+    if sc_cols[2].button("🌐 Cú Sốc ERP (+200 bps)", use_container_width=True):
+        st.session_state['fx_shock_ui'] = 0.0
+        st.session_state['rate_shock_ui'] = 0.0
+        st.session_state['erp_shock_ui'] = 2.0
+    if sc_cols[3].button("🔄 Reset Về Chuẩn", use_container_width=True):
+        st.session_state['fx_shock_ui'] = 0.0
+        st.session_state['rate_shock_ui'] = 0.0
+        st.session_state['erp_shock_ui'] = 0.0
+
+    st.markdown("##### 🎚️ Điều Chỉnh Tự Do")
+    sl_col1, sl_col2, sl_col3 = st.columns(3)
+    fx_val = sl_col1.slider("Biến động Tỷ Giá USD/VND (%)", min_value=-5.0, max_value=10.0, value=st.session_state.get('fx_shock_ui', 0.0), step=0.5, key='fx_shock_slider')
+    rate_val = sl_col2.slider("Biến động Lãi Suất Vay (bps)", min_value=-200, max_value=300, value=int(st.session_state.get('rate_shock_ui', 0)), step=25, key='rate_shock_slider')
+    erp_val = sl_col3.slider("Biến động bù đắp rủi ro ERP (%)", min_value=-2.0, max_value=4.0, value=float(st.session_state.get('erp_shock_ui', 0.0)), step=0.25, key='erp_shock_slider')
+
+    df_for_stress = get_all_registered_stocks()
+    df_stress = simulate_macro_stress(df_for_stress, fx_shock_pct=fx_val, rate_shock_bps=rate_val, erp_shock_pct=erp_val)
+    
+    st.markdown("##### 🎯 Kết Quả Định Giá Sau Cú Sốc")
+    if not df_stress.empty:
+        avg_impact = df_stress['Tác Động Định Giá (%)'].mean()
+        num_good_upside = len(df_stress[df_stress['Dư Địa Sau Sốc (%)'] > 20])
+        
+        sm_c1, sm_c2 = st.columns(2)
+        sm_c1.metric("Tác Động Trung Bình Lên Định Giá", f"{avg_impact:+.1f}%")
+        sm_c2.metric("Số Lượng CP Dư Địa > 20%", f"{num_good_upside} / {len(df_stress)} CP")
+        
+        display_cols = [
+            'Mã CP', 'Ngành', 'Nhóm Ngành', 'Thị Giá Sàn (VNĐ)', '🎯 Định Giá Hợp Lý (VNĐ)',
+            'Định Giá Sau Sốc (VNĐ)', 'Tác Động Định Giá (%)', 'Dư Địa Sau Sốc (%)'
+        ]
+        valid_cols = [c for c in display_cols if c in df_stress.columns]
+        st.dataframe(
+            df_stress[valid_cols],
+            use_container_width=True,
+            column_config={
+                "Thị Giá Sàn (VNĐ)": st.column_config.NumberColumn("Thị Giá Sàn", format="%,d đ"),
+                "🎯 Định Giá Hợp Lý (VNĐ)": st.column_config.NumberColumn("🎯 Định Giá Gốc", format="%,d đ"),
+                "Định Giá Sau Sốc (VNĐ)": st.column_config.NumberColumn("🎯 Định Giá Sau Sốc", format="%,d đ"),
+                "Tác Động Định Giá (%)": st.column_config.NumberColumn("📉 Tác Động Định Giá", format="%+.1f%%"),
+                "Dư Địa Sau Sốc (%)": st.column_config.NumberColumn("🚀 Dư Địa Sau Sốc", format="%+.1f%%"),
+            }
+        )
+
+# ==============================================================================
 # FOOTER
 # ==============================================================================
 st.markdown("---")
@@ -958,7 +1165,7 @@ st.markdown(
     """
     <div style="text-align: center; padding: 14px 20px; font-size: 0.82rem;
                 color: #78909C; border-top: 1px solid #2B313E;">
-        © 2026 <strong>NCT-System</strong> • Vietnam Macro & Equity Terminal Pro <strong>v1.2</strong>
+        © 2026 <strong>NCT-System</strong> • Vietnam Macro & Equity Terminal Pro <strong>v2.0 Alpha Pro</strong>
     </div>
     """,
     unsafe_allow_html=True,
