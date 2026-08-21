@@ -180,3 +180,65 @@ def test_engine_column_exists():
     df = fetch_stock_fundamentals(["VHM", "FPT"])
     if "🔬 Engine" in df.columns:
         assert all(v in ["✅ Computed", "📋 Reference"] for v in df["🔬 Engine"])
+
+# ─── Alpha 2.0 Module Tests ───
+def test_regime_engine_detection():
+    from services.regime_engine import detect_market_regime
+    macro_data = {
+        "m2_money_supply": {"latest": 14.25},
+        "pmi_index": {"latest": 52.40},
+        "vn_cpi": {"latest": 3.20},
+        "vn_bond_10y": {"latest": 3.50},
+        "interbank_rate": {"latest": 1.50},
+        "usd_vnd_rate": {"latest": 24800.0},
+    }
+    res = detect_market_regime(macro_data, vnindex_change_pct=2.5)
+    assert res["regime_code"] == "RISK_ON"
+    assert res["mos_adjustment"] == -0.05
+    assert len(res["leading_sectors"]) > 0
+
+def test_dynamic_mos_calculation():
+    from services.risk_allocator import calc_dynamic_mos
+    mos_bank = calc_dynamic_mos("Ngân hàng", beta=1.0, regime_code="RISK_ON")
+    mos_bds = calc_dynamic_mos("Bất động sản", beta=1.5, regime_code="RISK_OFF")
+    assert mos_bank < mos_bds
+    assert 0.08 <= mos_bank <= 0.35
+    assert 0.08 <= mos_bds <= 0.35
+
+def test_position_sizing_allocator():
+    from services.risk_allocator import calc_position_sizing
+    df = pd.DataFrame([
+        {"Mã CP": "VCB", "Nhóm Ngành": "Ngân hàng", "Thị Giá Sàn (VNĐ)": 90000, "Beta": 0.9, "🚀 Dư Địa Tăng (%)": 20.0},
+        {"Mã CP": "DXG", "Nhóm Ngành": "Bất động sản", "Thị Giá Sàn (VNĐ)": 15000, "Beta": 1.6, "🚀 Dư Địa Tăng (%)": 35.0},
+    ])
+    res = calc_position_sizing(df, total_capital_vnd=1_000_000_000, max_single_weight=0.6)
+    assert "Tỷ Trọng Đề Xuất (%)" in res.columns
+    assert "Phân Bổ Vốn (Triệu VNĐ)" in res.columns
+    assert "Khối Lượng Mục Tiêu (CP)" in res.columns
+    assert round(res["Tỷ Trọng Đề Xuất (%)"].sum()) == 100
+
+def test_simulate_macro_stress():
+    from services.stress_test import simulate_macro_stress
+    df = pd.DataFrame([
+        {"Mã CP": "VHM", "Ngành": "Bất động sản", "Thị Giá Sàn (VNĐ)": 70000, "🎯 Định Giá Hợp Lý (VNĐ)": 90000, "Beta": 1.3},
+        {"Mã CP": "DGC", "Ngành": "Hóa chất cơ bản", "Thị Giá Sàn (VNĐ)": 40000, "🎯 Định Giá Hợp Lý (VNĐ)": 55000, "Beta": 1.1},
+    ])
+    res = simulate_macro_stress(df, fx_shock_pct=5.0, rate_shock_bps=100.0, erp_shock_pct=2.0)
+    assert "Định Giá Sau Sốc (VNĐ)" in res.columns
+    assert "Tác Động Định Giá (%)" in res.columns
+    assert "Dư Địa Sau Sốc (%)" in res.columns
+    assert len(res) == 2
+
+def test_live_sector_money_flow_computation():
+    from services.money_flow_service import compute_live_sector_money_flow
+    live_quotes = {
+        "VHM": (72000, 2.5, "Vinhomes"),
+        "KDH": (18000, 1.8, "Khang Dien"),
+        "FPT": (115000, 3.2, "FPT Corp"),
+    }
+    sectors = compute_live_sector_money_flow({}, live_quotes)
+    assert len(sectors) > 0
+    bds = next((s for s in sectors if s.get("sector_id") == "bds"), None)
+    if bds and bds.get("is_live_computed"):
+        assert bds["price_change_pct"] > 0
+
