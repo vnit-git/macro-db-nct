@@ -68,7 +68,7 @@ st.set_page_config(
     page_title="Vietnam Macro & Equity Terminal Pro v2.0 Alpha Pro",
     page_icon="📈",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 st.markdown(
@@ -215,163 +215,28 @@ st.markdown(
 )
 
 # ==============================================================================
-# 2. Sidebar Configuration & Interactive API Guide
+# 2. State & Configuration Management (via Top Header Popover)
 # ==============================================================================
-with st.sidebar:
-    st.image("https://img.icons8.com/fluency/96/bullish.png", width=60)
-    st.markdown("### ⚙️ Cấu Hình Terminal")
+default_fred_key = st.session_state.get("saved_fred_key", get_safe_secret("FRED_API_KEY", ""))
+default_gemini_key = st.session_state.get("saved_gemini_key", get_safe_secret("GEMINI_API_KEY", get_safe_secret("GOOGLE_API_KEY", "")))
+default_openai_key = st.session_state.get("saved_openai_key", get_safe_secret("OPENAI_API_KEY", ""))
+default_provider = st.session_state.get("saved_provider", get_safe_secret("AI_PROVIDER", "gemini"))
+default_model = st.session_state.get("saved_model", get_safe_secret("AI_MODEL", "gemini-3.7-flash"))
+default_rss_url = st.session_state.get("saved_rss_url", get_safe_secret("RSS_FEED_URL", DEFAULT_RSS_FEED))
 
-    default_fred_key = st.session_state.get("saved_fred_key", get_safe_secret("FRED_API_KEY", ""))
-    default_gemini_key = st.session_state.get("saved_gemini_key", get_safe_secret("GEMINI_API_KEY", get_safe_secret("GOOGLE_API_KEY", "")))
-    default_openai_key = st.session_state.get("saved_openai_key", get_safe_secret("OPENAI_API_KEY", ""))
-
-    st.markdown("#### 🔑 Quản Trị API Keys")
-    
-    # Visual Interactive Guide for API Keys
-    with st.expander("💡 Hướng dẫn lấy API Key Miễn Phí (1 Phút)", expanded=False):
-        st.markdown(
-            """
-            **1. Google Gemini API Key (Miễn phí 100% - Rất Khuyên Dùng):**
-            - **Cách lấy:** Vào trang [Google AI Studio](https://aistudio.google.com/app/apikey) -> Đăng nhập bằng bất kỳ tài khoản Gmail nào -> Bấm nút xanh **Create API key** -> Copy chuỗi Key (bắt đầu bằng `AIzaSy...`) dán vào ô bên dưới.
-            - Hạn mức miễn phí rất cao (15 lượt/phút, 1.500 lượt/ngày), hoàn toàn không mất phí!
-
-            **2. FRED API Key (Miễn phí 100%):**
-            - Dùng cập nhật chỉ báo kinh tế từ Cục Dự trữ Liên bang Mỹ.
-            - **Cách lấy:** Vào [FRED St. Louis](https://fred.stlouisfed.org/) -> Đăng ký tài khoản -> Vào *My Account* -> *API Keys* -> Dán vào ô FRED API Key.
-
-            > 🌟 **Lưu ý:** *Nếu chưa có API Key, bạn KHÔNG cần nhập gì cả.* Hệ thống luôn tự động chạy ở chế độ Dữ liệu vĩ mô & Cổ phiếu chuẩn xác 100%!
-            """
-        )
-
-    ai_provider = st.radio(
-        "Chọn Động Cơ AI Phân Tích:",
-        options=["Google Gemini (Khuyên dùng - Miễn phí)", "OpenAI (ChatGPT)"],
-        index=0,
-    )
-
-    if "Gemini" in ai_provider:
-        ai_api_key = st.text_input(
-            "Google Gemini API Key",
-            value=default_gemini_key,
-            type="password",
-            placeholder="AIzaSy...",
-            help="Lấy miễn phí tại https://aistudio.google.com/app/apikey",
-        )
-        ai_model = st.selectbox(
-            "Mô hình Gemini",
-            options=[
-                "gemini-3.7-flash",
-                "gemini-3.7-flash-thinking",
-                "gemini-2.5-flash",
-                "gemini-2.0-flash",
-                "gemini-1.5-flash",
-            ],
-            index=0,
-            help="Mô hình Gemini 3.7 Flash thế hệ mới nhất với tốc độ siêu nhanh và khả năng lý luận vượt trội.",
-        )
-        provider_name = "gemini"
-    else:
-        ai_api_key = st.text_input(
-            "OpenAI API Key",
-            value=default_openai_key,
-            type="password",
-            placeholder="sk-proj-...",
-            help="Lấy tại https://platform.openai.com/api-keys",
-        )
-        ai_model = st.selectbox(
-            "Mô hình OpenAI",
-            options=["gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"],
-            index=0,
-        )
-        provider_name = "openai"
-
-    fred_api_key = st.text_input(
-        "FRED API Key",
-        value=default_fred_key,
-        type="password",
-        placeholder="Nhập chuỗi FRED API key...",
-        help="Khóa API lấy từ https://fred.stlouisfed.org",
-    )
-
-    st.markdown("#### 🌐 Nguồn Tin Tức & Chính Sách Realtime")
-    
-    rss_presets = {
-        "🏛️ Cổng Thông Tin Chính Phủ (Công Báo)": "http://congbao.chinhphu.vn/cac-van-ban-moi-ban-hanh.rss",
-        "📈 CafeF - Vĩ Mô & Đầu Tư": "https://cafef.vn/vi-mo-dau-tu.rss",
-        "💼 VnExpress - Kinh Doanh": "https://vnexpress.net/rss/kinh-doanh.rss",
-        "📰 Báo Đầu Tư - Chính Sách & Thời Sự": "https://baodautu.vn/rss/thoi-su.rss",
-        "⚙️ Tùy chỉnh luồng RSS khác": "custom",
-    }
-
-    selected_preset = st.selectbox(
-        "Chọn nguồn tin tức:",
-        options=list(rss_presets.keys()),
-        index=0,
-        help="Chọn nhanh các kênh công báo chính sách hoặc tin tức tài chính vĩ mô cập nhật liên tục.",
-    )
-
-    if rss_presets[selected_preset] == "custom":
-        rss_url = st.text_input(
-            "Nhập URL Luồng RSS Tùy Chỉnh:",
-            value=DEFAULT_RSS_FEED,
-            help="Dán đường dẫn RSS bất kỳ bạn muốn phân tích.",
-        )
-    else:
-        rss_url = rss_presets[selected_preset]
-        st.caption(f"🔗 `{rss_url}`")
-
-    # State initialization for seamless session persistence
-    if "saved_gemini_key" not in st.session_state:
-        st.session_state["saved_gemini_key"] = default_gemini_key
-    if "saved_openai_key" not in st.session_state:
-        st.session_state["saved_openai_key"] = default_openai_key
-    if "saved_fred_key" not in st.session_state:
-        st.session_state["saved_fred_key"] = default_fred_key
-
-    if st.button("💾 Lưu Cấu Hình API Key", use_container_width=True, help="Lưu cấu hình API Key vào phiên làm việc và file"):
-        clean_gemini = ai_api_key.strip() if provider_name == "gemini" else default_gemini_key
-        clean_openai = ai_api_key.strip() if provider_name == "openai" else default_openai_key
-        clean_fred = fred_api_key.strip()
-
-        st.session_state["saved_gemini_key"] = clean_gemini
-        st.session_state["saved_openai_key"] = clean_openai
-        st.session_state["saved_fred_key"] = clean_fred
-
-        try:
-            secrets_path = os.path.join(_CURRENT_DIR, ".streamlit", "secrets.toml")
-            os.makedirs(os.path.dirname(secrets_path), exist_ok=True)
-            save_dict = {
-                "FRED_API_KEY": clean_fred,
-                "GEMINI_API_KEY": clean_gemini,
-                "OPENAI_API_KEY": clean_openai,
-                "AI_PROVIDER": provider_name,
-                "AI_MODEL": ai_model,
-                "RSS_FEED_URL": rss_url.strip(),
-            }
-            lines = [f'{k} = "{v}"\n' for k, v in save_dict.items()]
-            with open(secrets_path, "w", encoding="utf-8") as f:
-                f.writelines(lines)
-            st.toast("✅ Đã lưu cấu hình API Key thành công!", icon="💾")
-        except Exception:
-            # On Streamlit Cloud read-only mount, safely saved to session state
-            st.toast("✅ Đã lưu API Key vào phiên làm việc thành công!", icon="✨")
-        st.rerun()
-
-    st.markdown("---")
-    st.markdown("#### ⚡ Bộ Nhớ Đệm Đa Tầng")
-    st.caption("• Vĩ mô: 24h | • Chính sách NLP: 1h | • Định giá: 5m")
-    if st.button("🧹 Làm Mới Bộ Đệm (Clear Cache)", use_container_width=True):
-        st.cache_data.clear()
-        st.toast("Đã xóa sạch bộ đệm dữ liệu thành công!", icon="✨")
-        st.rerun()
-
-    st.markdown("---")
-    st.caption("Vietnam Macro & Equity Terminal Pro • **v2.0 Alpha Pro**")
+# Global variables initialized with defaults
+ai_provider = "Google Gemini (Khuyên dùng - Miễn phí)" if default_provider == "gemini" else "OpenAI (ChatGPT)"
+provider_name = default_provider
+ai_api_key = default_gemini_key if provider_name == "gemini" else default_openai_key
+ai_model = default_model
+fred_api_key = default_fred_key
+rss_url = default_rss_url
 
 # ==============================================================================
-# 3. Main Dashboard Header & Market Thermometer
+# 3. Main Dashboard Header & Settings Popover
 # ==============================================================================
-col_title, col_status = st.columns([3, 1])
+col_title, col_settings_box = st.columns([7, 3], gap="medium")
+
 with col_title:
     st.markdown(
         '<p class="terminal-title">VIETNAM MACRO & EQUITY TERMINAL PRO '
@@ -381,14 +246,146 @@ with col_title:
     )
     st.markdown('<p class="terminal-subtitle">NCT-System : Phân Tích Vĩ Mô Toàn Diện, Lượng Hóa Chính Sách & Định Giá Cổ Phiếu Tự Động Hóa</p>', unsafe_allow_html=True)
 
-with col_status:
-    is_live = bool(fred_api_key and ai_api_key)
-    st.markdown("<div style='text-align: right; padding-top: 8px;'>", unsafe_allow_html=True)
-    if is_live:
-        st.markdown('<span class="status-pill-green">● LIVE API CONNECTED</span>', unsafe_allow_html=True)
-    else:
-        st.markdown('<span class="status-pill-orange">⚡ SSoT MACRO BENCHMARK MODE</span>', unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+with col_settings_box:
+    is_live_conn = bool(fred_api_key or ai_api_key)
+    status_badge = '<span class="status-pill-green">● LIVE API READY</span>' if is_live_conn else '<span class="status-pill-orange">⚡ SSoT BENCHMARK MODE</span>'
+    st.markdown(f"<div style='text-align: right; margin-bottom: 6px;'>{status_badge}</div>", unsafe_allow_html=True)
+    
+    with st.popover("⚙️ Cài Đặt Terminal & API Keys", use_container_width=True):
+        st.markdown("### ⚙️ Cấu Hình Hệ Thống Terminal")
+        st.caption("Quản trị khóa API, tùy chỉnh động cơ trí tuệ nhân tạo và luồng tin tức vĩ mô:")
+        
+        with st.expander("💡 Hướng dẫn lấy API Key Miễn Phí (1 Phút)", expanded=False):
+            st.markdown(
+                """
+                **1. Google Gemini API Key (Miễn phí 100% - Rất Khuyên Dùng):**
+                - **Cách lấy:** Vào trang [Google AI Studio](https://aistudio.google.com/app/apikey) -> Đăng nhập Gmail -> Bấm nút **Create API key** -> Copy chuỗi Key dán vào ô bên dưới.
+                - Hạn mức miễn phí rất cao (15 lượt/phút, 1.500 lượt/ngày), hoàn toàn không mất phí!
+
+                **2. FRED API Key (Miễn phí 100%):**
+                - Dùng cập nhật chỉ báo kinh tế từ Cục Dự trữ Liên bang Mỹ.
+                - **Cách lấy:** Vào [FRED St. Louis](https://fred.stlouisfed.org/) -> Đăng ký tài khoản -> Vào *My Account* -> *API Keys* -> Dán vào ô FRED API Key.
+                """
+            )
+            
+        ai_provider_sel = st.radio(
+            "Chọn Động Cơ AI Phân Tích:",
+            options=["Google Gemini (Khuyên dùng - Miễn phí)", "OpenAI (ChatGPT)"],
+            index=0 if "Gemini" in ai_provider else 1,
+            key="popover_ai_provider",
+        )
+        
+        if "Gemini" in ai_provider_sel:
+            provider_name = "gemini"
+            ai_api_key = st.text_input(
+                "Google Gemini API Key",
+                value=default_gemini_key,
+                type="password",
+                placeholder="AIzaSy...",
+                help="Lấy miễn phí tại https://aistudio.google.com/app/apikey",
+                key="popover_gemini_key",
+            )
+            ai_model = st.selectbox(
+                "Mô hình Gemini",
+                options=[
+                    "gemini-3.7-flash",
+                    "gemini-3.7-flash-thinking",
+                    "gemini-2.5-flash",
+                    "gemini-2.0-flash",
+                    "gemini-1.5-flash",
+                ],
+                index=0,
+                help="Mô hình Gemini 3.7 Flash thế hệ mới nhất với tốc độ siêu nhanh và khả năng lý luận vượt trội.",
+                key="popover_gemini_model",
+            )
+        else:
+            provider_name = "openai"
+            ai_api_key = st.text_input(
+                "OpenAI API Key",
+                value=default_openai_key,
+                type="password",
+                placeholder="sk-proj-...",
+                help="Lấy tại https://platform.openai.com/api-keys",
+                key="popover_openai_key",
+            )
+            ai_model = st.selectbox(
+                "Mô hình OpenAI",
+                options=["gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"],
+                index=0,
+                key="popover_openai_model",
+            )
+            
+        fred_api_key = st.text_input(
+            "FRED API Key",
+            value=default_fred_key,
+            type="password",
+            placeholder="Nhập chuỗi FRED API key...",
+            help="Khóa API lấy từ https://fred.stlouisfed.org",
+            key="popover_fred_key",
+        )
+        
+        st.markdown("#### 🌐 Nguồn Tin Tức & Chính Sách Realtime")
+        rss_presets = {
+            "🏛️ Cổng Thông Tin Chính Phủ (Công Báo)": "http://congbao.chinhphu.vn/cac-van-ban-moi-ban-hanh.rss",
+            "📈 CafeF - Vĩ Mô & Đầu Tư": "https://cafef.vn/vi-mo-dau-tu.rss",
+            "💼 VnExpress - Kinh Doanh": "https://vnexpress.net/rss/kinh-doanh.rss",
+            "📰 Báo Đầu Tư - Chính Sách & Thời Sự": "https://baodautu.vn/rss/thoi-su.rss",
+            "⚙️ Tùy chỉnh luồng RSS khác": "custom",
+        }
+
+        selected_preset = st.selectbox(
+            "Chọn nguồn tin tức:",
+            options=list(rss_presets.keys()),
+            index=0,
+            help="Chọn nhanh các kênh công báo chính sách hoặc tin tức tài chính vĩ mô cập nhật liên tục.",
+            key="popover_rss_preset",
+        )
+
+        if rss_presets[selected_preset] == "custom":
+            rss_url = st.text_input(
+                "Nhập URL Luồng RSS Tùy Chỉnh:",
+                value=default_rss_url,
+                help="Dán đường dẫn RSS bất kỳ bạn muốn phân tích.",
+                key="popover_custom_rss",
+            )
+        else:
+            rss_url = rss_presets[selected_preset]
+            st.caption(f"🔗 `{rss_url}`")
+            
+        st.markdown("---")
+        col_btn1, col_btn2 = st.columns(2)
+        with col_btn1:
+            if st.button("💾 Lưu Cấu Hình", use_container_width=True):
+                st.session_state["saved_gemini_key"] = ai_api_key.strip() if provider_name == "gemini" else default_gemini_key
+                st.session_state["saved_openai_key"] = ai_api_key.strip() if provider_name == "openai" else default_openai_key
+                st.session_state["saved_fred_key"] = fred_api_key.strip()
+                st.session_state["saved_provider"] = provider_name
+                st.session_state["saved_model"] = ai_model
+                st.session_state["saved_rss_url"] = rss_url.strip()
+                try:
+                    secrets_path = os.path.join(_CURRENT_DIR, ".streamlit", "secrets.toml")
+                    os.makedirs(os.path.dirname(secrets_path), exist_ok=True)
+                    save_dict = {
+                        "FRED_API_KEY": fred_api_key.strip(),
+                        "GEMINI_API_KEY": ai_api_key.strip() if provider_name == "gemini" else "",
+                        "OPENAI_API_KEY": ai_api_key.strip() if provider_name == "openai" else "",
+                        "AI_PROVIDER": provider_name,
+                        "AI_MODEL": ai_model,
+                        "RSS_FEED_URL": rss_url.strip(),
+                    }
+                    lines = [f'{k} = "{v}"\n' for k, v in save_dict.items()]
+                    with open(secrets_path, "w", encoding="utf-8") as f:
+                        f.writelines(lines)
+                except Exception:
+                    pass
+                st.toast("✅ Đã lưu cấu hình thành công!", icon="💾")
+                st.rerun()
+                
+        with col_btn2:
+            if st.button("🧹 Xóa Cache", use_container_width=True):
+                st.cache_data.clear()
+                st.toast("✨ Đã xóa sạch bộ đệm dữ liệu thành công!", icon="✨")
+                st.rerun()
 
 # Fetch Macro Data
 macro_data = fetch_macro_data(api_key=fred_api_key)
