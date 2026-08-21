@@ -414,21 +414,12 @@ def compute_live_sector_money_flow(stock_registry: Optional[Dict[str, Dict]] = N
     
     if live_quotes is None:
         try:
-            from services.stock_service import _fetch_single_live_quote
-            from concurrent.futures import ThreadPoolExecutor
-            
+            from services.stock_service import fetch_batch_live_quotes
             all_syms = set()
             for sec in sectors_base:
                 for s in sec.get("top_stocks", []):
                     all_syms.add(s)
-                    
-            with ThreadPoolExecutor(max_workers=12) as executor:
-                results = list(executor.map(_fetch_single_live_quote, list(all_syms)))
-                
-            live_quotes = {}
-            for sym, price, chg, name in results:
-                if price is not None:
-                    live_quotes[sym] = (price, chg, name)
+            live_quotes = fetch_batch_live_quotes(list(all_syms))
         except Exception:
             live_quotes = {}
             

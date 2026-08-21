@@ -634,28 +634,71 @@ _HTTP_SESSION = requests.Session()
 _HTTP_SESSION.trust_env = False
 
 
-def _fetch_single_live_quote(symbol: str) -> Tuple[str, Optional[int], Optional[float], Optional[str]]:
-    """Fetch single real-time stock quote from exchange gateway with 2.5s timeout."""
+def fetch_batch_live_quotes(tickers: List[str]) -> Dict[str, Tuple[Optional[int], Optional[float], Optional[str]]]:
+    """
+    High-speed multi-gateway live quote fetcher.
+    Primary: VPS Ultra-Fast Open Datafeed (Batch symbols in single request, Cloud-safe, Zero geoblocking)
+    Secondary: SSI iBoard Gateway (ThreadPool fallback)
+    """
+    if not tickers:
+        return {}
+
+    clean_syms = [t.strip().upper() for t in tickers if is_valid_ticker(t.strip().upper())]
+    if not clean_syms:
+        return {}
+
+    quotes: Dict[str, Tuple[Optional[int], Optional[float], Optional[str]]] = {}
+
+    # 1. Primary Gateway: VPS High-Speed Batch API
     try:
-        url = f"https://iboard-query.ssi.com.vn/stock/{symbol.lower()}"
-        resp = _HTTP_SESSION.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=2.5)
+        sym_str = ",".join(clean_syms)
+        url = f"https://bgapidatafeed.vps.com.vn/getliststockdata/{sym_str}"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "Accept": "application/json, text/plain, */*",
+        }
+        resp = _HTTP_SESSION.get(url, headers=headers, timeout=3.5)
         if resp.status_code == 200:
-            data = resp.json().get("data", {})
-            price = data.get("matchedPrice") or data.get("refPrice") or data.get("priorClosePrice")
-            chg = data.get("priceChangePercent", 0.0)
-            name = data.get("companyNameVi") or data.get("clientName")
-            if price and price > 0:
-                return symbol, int(price), float(chg), name
+            items = resp.json()
+            if isinstance(items, list):
+                for item in items:
+                    sym = item.get("sym")
+                    if not sym:
+                        continue
+                    sym = sym.upper()
+                    # lastPrice/r is in thousands (e.g. 71.7 for 71,700 VND)
+                    raw_price = item.get("lastPrice") or item.get("r") or item.get("c")
+                    if raw_price is not None and float(raw_price) > 0:
+                        price = int(float(raw_price) * 1000)
+                        try:
+                            chg = float(item.get("changePc", 0.0))
+                        except Exception:
+                            chg = 0.0
+                        name = item.get("CWUnderlying") or None
+                        quotes[sym] = (price, chg, name)
     except Exception as e:
-        logger.debug(f"Live quote fetch failed for {symbol}: {e}")
-    return symbol, None, None, None
+        logger.warning(f"VPS batch quote fetch error: {e}")
+
+    # 2. Secondary Gateway: For any missing symbols, use SSI fallback
+    missing_syms = [s for s in clean_syms if s not in quotes or quotes[s][0] is None]
+    if missing_syms:
+        try:
+            with ThreadPoolExecutor(max_workers=min(8, len(missing_syms))) as executor:
+                results = executor.map(_fetch_single_live_quote, missing_syms)
+                for sym, p, c, name in results:
+                    if p is not None:
+                        quotes[sym] = (p, c, name)
+        except Exception as e:
+            logger.debug(f"SSI fallback quote fetch error: {e}")
+
+    return quotes
 
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=30, show_spinner=False)
 def fetch_stock_fundamentals(tickers: List[str], regime_code: str = "TRANSITION") -> pd.DataFrame:
     """
     Fetch live market prices and compute accurate institutional valuation metrics synchronized with Vietstock.vn.
-    Cached for 60 seconds (1 minute) for live market synchronization.
+    Cached for 30 seconds for live market synchronization.
     """
     if not tickers:
         return pd.DataFrame()
@@ -670,15 +713,8 @@ def fetch_stock_fundamentals(tickers: List[str], regime_code: str = "TRANSITION"
     if not valid_syms:
         return pd.DataFrame()
 
-    # 1. Fetch real-time quotes concurrently via ThreadPool
-    live_quotes: Dict[str, Tuple[Optional[int], Optional[float], Optional[str]]] = {}
-    try:
-        with ThreadPoolExecutor(max_workers=min(12, len(valid_syms))) as executor:
-            results = executor.map(_fetch_single_live_quote, valid_syms)
-            for sym, p, c, name in results:
-                live_quotes[sym] = (p, c, name)
-    except Exception as e:
-        logger.warning(f"ThreadPool live quote fetch error: {e}")
+    # 1. Fetch real-time quotes via ultra-fast multi-gateway batch fetcher
+    live_quotes = fetch_batch_live_quotes(valid_syms)
 
     # 2. Build valuation metrics DataFrame
     stock_rows: List[Dict[str, Any]] = []
